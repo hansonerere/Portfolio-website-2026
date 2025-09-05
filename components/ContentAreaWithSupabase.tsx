@@ -39,7 +39,7 @@ function GalleryImage({
   return (
     <div 
       ref={ref}
-      className={`break-inside-avoid inline-block w-full mb-2 gallery-fade-in ${
+      className={`break-inside-avoid inline-block w-full mb-[8px] gallery-fade-in ${
         hasBeenVisible ? 'animate' : ''
       } ${delayClass}`}
     >
@@ -89,7 +89,7 @@ function GalleryVideo({
   return (
     <div 
       ref={ref}
-      className={`break-inside-avoid inline-block w-full mb-2 gallery-fade-in ${
+      className={`break-inside-avoid inline-block w-full mb-[8px] gallery-fade-in ${
         hasBeenVisible ? 'animate' : ''
       } ${delayClass}`}
     >
@@ -168,7 +168,7 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
     return (
       <div className="flex-1 bg-[#0f0f0f] min-h-screen overflow-y-auto">
         {/* Hero Section Skeleton */}
-        <div className="p-0 mb-2">
+        <div className="p-0 mb-[8px]">
           <div className="max-w-full mx-auto">
             <div className="aspect-video bg-[#212121] rounded-lg animate-pulse flex items-center justify-center">
               <div className="text-[#9e9e9e] text-sm">Loading project...</div>
@@ -206,7 +206,7 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
   return (
     <div className="flex-1 bg-[#0f0f0f] min-h-screen overflow-y-auto">
       {/* Hero Section */}
-      <div className="p-0 mb-2">
+      <div className="p-0 mb-[8px]">
         <div className="max-w-full mx-auto">
           <div className={`aspect-video bg-black overflow-hidden rounded-lg relative video-entrance ${
             videoAnimated ? 'animate' : ''
@@ -222,9 +222,9 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
             {project.hero_video_url && (
               <>
                 {videoLoading && !videoError && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="text-[#9e9e9e] text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#9e9e9e] mx-auto mb-2"></div>
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <div className="text-white text-center bg-black/50 rounded-lg p-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
                       <div className="text-sm">Loading video...</div>
                     </div>
                   </div>
