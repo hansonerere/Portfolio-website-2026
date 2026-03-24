@@ -3,17 +3,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SidebarWithSupabase } from './components/SidebarWithSupabase';
 import { ContentAreaWithSupabase } from './components/ContentAreaWithSupabase';
 import { LandingPageWithSupabase } from './components/LandingPageWithSupabase';
-import { AboutPageWithSupabase } from './components/AboutPageWithSupabase';
+import { AdminCMS } from './components/AdminCMS';
 import { useProjects } from './hooks/useSupabaseData';
 
 export default function App() {
+  const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+  if (isAdminRoute) {
+    return <AdminCMS />;
+  }
+
+  return <PublicSiteApp />;
+}
+
+function PublicSiteApp() {
   const [activeProject, setActiveProject] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const [showMobileContent, setShowMobileContent] = useState(false);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [showAboutFullscreen, setShowAboutFullscreen] = useState(false);
   // 生产模式：始终使用Supabase数据
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -61,15 +69,7 @@ export default function App() {
   const handleProjectSelect = (projectId: string) => {
     if (projectId === activeProject) return; // Prevent unnecessary transitions
     if (projectsLoading) return; // Wait for projects to load
-    
-    // Check if it's the about project (production mode - using Supabase data)
-    const selectedProject = supabaseProjects.find(p => p.id === projectId);
-    if (projectId === 'about' || (selectedProject && (selectedProject.title === 'About me' || selectedProject.category === 'Info'))) {
-      setShowAboutFullscreen(true);
-      setActiveProject(null);
-      return;
-    }
-    
+
     setActiveProject(projectId);
     if (isMobile) {
       setShowMobileContent(true);
@@ -82,10 +82,9 @@ export default function App() {
   };
 
   const handleHomeSelect = () => {
-    if (activeProject === null && !showAboutFullscreen) return; // Prevent unnecessary transitions
-    
+    if (activeProject === null) return; // Prevent unnecessary transitions
+
     setActiveProject(null);
-    setShowAboutFullscreen(false);
     if (isMobile) {
       setShowMobileContent(true);
     }
@@ -96,22 +95,12 @@ export default function App() {
     }, 0);
   };
 
-  const handleCloseAbout = () => {
-    setShowAboutFullscreen(false);
-    setActiveProject(null);
-  };
-
   const handleMobileBack = () => {
     setShowMobileContent(false);
   };
 
   // Get current project from Supabase data
   const currentProject = activeProject ? supabaseProjects.find(p => p.id === activeProject) : null;
-
-  // Full screen About page
-  if (showAboutFullscreen) {
-    return <AboutPageWithSupabase onClose={handleCloseAbout} />;
-  }
 
   // Content animation variants for Framer Motion - opacity only
   const contentVariants = {

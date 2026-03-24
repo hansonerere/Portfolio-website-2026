@@ -32,4 +32,4 @@ dist-ssr
 
 # Vercel
 .vercel
-
+.local-node
