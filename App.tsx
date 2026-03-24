@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SidebarWithSupabase } from './components/SidebarWithSupabase';
 import { ContentAreaWithSupabase } from './components/ContentAreaWithSupabase';
 import { LandingPageWithSupabase } from './components/LandingPageWithSupabase';
+import { AboutContentAreaNotion } from './components/AboutContentAreaNotion';
 import { AdminCMS } from './components/AdminCMS';
 import { useProjects } from './hooks/useSupabaseData';
 
@@ -101,6 +102,7 @@ function PublicSiteApp() {
 
   // Get current project from Supabase data
   const currentProject = activeProject ? supabaseProjects.find(p => p.id === activeProject) : null;
+  const isAboutProject = Boolean(currentProject && (currentProject.title === 'About me' || currentProject.category === 'Info'));
 
   // Content animation variants for Framer Motion - opacity only
   const contentVariants = {
@@ -174,6 +176,8 @@ function PublicSiteApp() {
               >
                 {activeProject === null ? (
                   <LandingPageWithSupabase />
+                ) : isAboutProject ? (
+                  <AboutContentAreaNotion projectId={activeProject} />
                 ) : currentProject ? (
                   <ContentAreaWithSupabase projectId={activeProject} />
                 ) : (
@@ -220,6 +224,8 @@ function PublicSiteApp() {
             >
               {activeProject === null ? (
                 <LandingPageWithSupabase />
+              ) : isAboutProject ? (
+                <AboutContentAreaNotion projectId={activeProject} />
               ) : currentProject ? (
                 <ContentAreaWithSupabase projectId={activeProject} />
               ) : (
@@ -262,11 +268,13 @@ function PublicSiteApp() {
             variants={contentVariants}
             transition={transition}
           >
-            {activeProject === null ? (
-              <LandingPageWithSupabase />
-            ) : currentProject ? (
-              <ContentAreaWithSupabase projectId={activeProject} />
-            ) : (
+              {activeProject === null ? (
+                <LandingPageWithSupabase />
+              ) : isAboutProject ? (
+                <AboutContentAreaNotion projectId={activeProject} />
+              ) : currentProject ? (
+                <ContentAreaWithSupabase projectId={activeProject} />
+              ) : (
               <LandingPageWithSupabase />
             )}
           </motion.div>

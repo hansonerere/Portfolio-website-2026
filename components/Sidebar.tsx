@@ -2,8 +2,6 @@ import { Project } from './ProjectData';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import Vector from '../imports/Vector';
 
-const ABOUT_EXTERNAL_URL = 'https://hansonerere.notion.site/Hanson-22a66e7675f944a1972e7f38c411e9d5';
-
 interface SidebarProps {
   projects: Project[];
   activeProject: string | null;
@@ -13,15 +11,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ projects, activeProject, onProjectSelect, onHomeSelect, isMobile = false }: SidebarProps) {
-  const handleProjectClick = (project: Project) => {
-    if (project.title === 'About me' || project.category === 'Info') {
-      window.open(ABOUT_EXTERNAL_URL, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    onProjectSelect(project.id);
-  };
-
   return (
     <div className={`bg-[#0f0f0f] flex flex-col ${
       isMobile ? 'h-full' : 'h-screen border-r border-[#212121]'
@@ -81,7 +70,7 @@ export function Sidebar({ projects, activeProject, onProjectSelect, onHomeSelect
         {projects.map((project) => (
           <div
             key={project.id}
-            onClick={() => handleProjectClick(project)}
+            onClick={() => onProjectSelect(project.id)}
             className={`
               rounded-xl cursor-pointer transition-all duration-200 group
               ${activeProject === project.id ? 'bg-[#eeeeee]' : 'bg-[#212121] hover:bg-[#424242]'}
