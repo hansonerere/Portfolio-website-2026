@@ -39,8 +39,9 @@
   "exclude": [
     "node_modules",
     "dist",
-    "vite.config.ts"
+    "vite.config.ts",
+    "components/ui/**/*",
+    "components/DrawerMenu.tsx"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
-

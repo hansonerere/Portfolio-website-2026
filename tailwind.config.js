@@ -2,11 +2,13 @@
 export default {
   darkMode: ["class"],
   content: [
-    './pages/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
-    './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
-    './**/*.{ts,tsx}',
+    './hooks/**/*.{ts,tsx}',
+    './lib/**/*.{ts,tsx}',
+    './imports/**/*.{ts,tsx}',
+    './App.tsx',
+    './vite-env.d.ts',
   ],
   prefix: "",
   theme: {
@@ -79,4 +81,3 @@ export default {
   },
   plugins: [require("tailwindcss-animate")],
 }
-

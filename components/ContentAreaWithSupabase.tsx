@@ -133,11 +133,12 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
     let cancelled = false;
     let captureVideo: HTMLVideoElement | null = null;
     let timeoutId: number | null = null;
+    const heroVideoUrl = project?.hero_video_url ?? '';
 
     setVideoFrameUrl(project?.hero_video_poster || null);
 
     // If a poster is already configured, use it directly.
-    if (!project?.hero_video_url || project.hero_video_poster) {
+    if (!heroVideoUrl || project?.hero_video_poster) {
       return () => {
         cancelled = true;
       };
@@ -149,7 +150,7 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
       captureVideo.muted = true;
       captureVideo.playsInline = true;
       captureVideo.preload = 'auto';
-      captureVideo.src = project.hero_video_url || '';
+      captureVideo.src = heroVideoUrl;
 
       const handleLoadedData = () => {
         if (!captureVideo || cancelled) return;

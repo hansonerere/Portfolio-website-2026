@@ -297,10 +297,12 @@ export function useProject(projectId: string | null) {
       return;
     }
 
+    const safeProjectId = projectId;
+
     async function fetchProject() {
       try {
         setError(null);
-        const cached = projectDetailsCache.get(projectId);
+        const cached = projectDetailsCache.get(safeProjectId);
         if (cached) {
           setProject(cached.project);
           setSections(cached.sections);
@@ -310,7 +312,7 @@ export function useProject(projectId: string | null) {
         }
 
         setLoading(true);
-        const payload = await fetchProjectDetailData(projectId);
+        const payload = await fetchProjectDetailData(safeProjectId);
         if (!mounted) return;
         setProject(payload.project);
         setSections(payload.sections);
