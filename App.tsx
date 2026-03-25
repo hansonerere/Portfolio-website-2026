@@ -51,6 +51,25 @@ function PublicSiteApp() {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
+  useEffect(() => {
+    const blockMediaInteraction = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      if (target.closest('img, video')) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', blockMediaInteraction, true);
+    document.addEventListener('dragstart', blockMediaInteraction, true);
+
+    return () => {
+      document.removeEventListener('contextmenu', blockMediaInteraction, true);
+      document.removeEventListener('dragstart', blockMediaInteraction, true);
+    };
+  }, []);
+
   // 生产模式：始终使用Supabase数据
   useEffect(() => {
     console.log('Production Mode: Using Supabase data');
