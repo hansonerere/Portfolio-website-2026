@@ -2,11 +2,7 @@ import { useEffect, useState } from 'react';
 import { preloadNotionAbout } from '../lib/notionWarmup';
 
 const NOTION_ABOUT_URL = 'https://hansonerere.notion.site/Hanson-22a66e7675f944a1972e7f38c411e9d5';
-
-function getEmbedUrl(url: string) {
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}embed=true`;
-}
+const NOTION_ABOUT_EMBED_URL = 'https://hansonerere.notion.site/ebd/22a66e7675f944a1972e7f38c411e9d5';
 
 interface AboutContentAreaNotionProps {
   projectId: string;
@@ -70,7 +66,7 @@ export function AboutContentAreaNotion({
         {shouldRenderIframe && (
           <iframe
             key={`about-notion-${resetToken}`}
-            src={getEmbedUrl(NOTION_ABOUT_URL)}
+            src={NOTION_ABOUT_EMBED_URL}
             title="About Hanson"
             loading="eager"
             onLoad={() => setIsIframeReady(true)}
