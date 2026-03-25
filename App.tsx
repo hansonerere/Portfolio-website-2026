@@ -257,6 +257,7 @@ function PublicSiteApp() {
               isVisible={isAboutProject}
               shouldLoad={shouldWarmNotion}
               resetToken={aboutOpenVersion}
+              preloadEmbed={false}
             />
           </div>
         </div>
@@ -314,6 +315,7 @@ function PublicSiteApp() {
             isVisible={isAboutProject}
             shouldLoad={shouldWarmNotion}
             resetToken={aboutOpenVersion}
+            preloadEmbed={false}
           />
         </div>
       </div>
@@ -369,6 +371,7 @@ function PublicSiteApp() {
           isVisible={isAboutProject}
           shouldLoad={shouldWarmNotion}
           resetToken={aboutOpenVersion}
+          preloadEmbed
         />
       </div>
     </div>

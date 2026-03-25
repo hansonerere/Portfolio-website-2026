@@ -13,26 +13,49 @@ interface AboutContentAreaNotionProps {
   isVisible: boolean;
   shouldLoad: boolean;
   resetToken: number;
+  preloadEmbed?: boolean;
 }
 
-export function AboutContentAreaNotion({ projectId, isVisible, shouldLoad, resetToken }: AboutContentAreaNotionProps) {
+export function AboutContentAreaNotion({
+  projectId,
+  isVisible,
+  shouldLoad,
+  resetToken,
+  preloadEmbed = true,
+}: AboutContentAreaNotionProps) {
   void projectId;
 
   const [isIframeReady, setIsIframeReady] = useState(false);
   const [hasStartedLoading, setHasStartedLoading] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
     if (shouldLoad || isVisible) {
       preloadNotionAbout();
-      setHasStartedLoading(true);
+      if (preloadEmbed || isVisible) {
+        setHasStartedLoading(true);
+      }
     }
-  }, [shouldLoad, isVisible]);
+  }, [preloadEmbed, shouldLoad, isVisible]);
 
   useEffect(() => {
     if (hasStartedLoading) {
       setIsIframeReady(false);
+      setShowFallback(false);
     }
   }, [resetToken, hasStartedLoading]);
+
+  useEffect(() => {
+    if (!isVisible || isIframeReady || !hasStartedLoading) return;
+
+    const timer = window.setTimeout(() => {
+      setShowFallback(true);
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [hasStartedLoading, isIframeReady, isVisible, resetToken]);
+
+  const shouldRenderIframe = hasStartedLoading && (preloadEmbed || isVisible);
 
   return (
     <div
@@ -44,20 +67,32 @@ export function AboutContentAreaNotion({ projectId, isVisible, shouldLoad, reset
       aria-hidden={!isVisible}
     >
       <div className="max-w-full mx-auto">
-        {hasStartedLoading && (
+        {shouldRenderIframe && (
           <iframe
             key={`about-notion-${resetToken}`}
             src={getEmbedUrl(NOTION_ABOUT_URL)}
             title="About Hanson"
             loading="eager"
             onLoad={() => setIsIframeReady(true)}
-            className="w-full min-h-[100vh] bg-white border-0 rounded-lg"
+            className="block w-full min-h-[100dvh] bg-white border-0"
           />
         )}
 
         {isVisible && !isIframeReady && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0f0f0f] text-[#9e9e9e]">
-            Loading About content...
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0f0f0f] text-[#9e9e9e] px-6">
+            <div className="text-center space-y-4">
+              <p>Loading About content...</p>
+              {showFallback && (
+                <a
+                  href={NOTION_ABOUT_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-full bg-[#eeeeee] px-5 py-2 text-sm font-medium text-[#0f0f0f]"
+                >
+                  Open in Notion
+                </a>
+              )}
+            </div>
           </div>
         )}
       </div>
