@@ -122,19 +122,102 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
   const { project, sections, gallery, loading, error } = useProject(projectId);
   const [videoError, setVideoError] = useState(false);
   const [videoLoading, setVideoLoading] = useState(true);
-  const [videoAnimated, setVideoAnimated] = useState(false);
+  const [videoFrameUrl, setVideoFrameUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    setVideoAnimated(false);
     setVideoLoading(true);
     setVideoError(false);
-    
-    const timer = setTimeout(() => {
-      setVideoAnimated(true);
-    }, 100);
-
-    return () => clearTimeout(timer);
   }, [projectId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let captureVideo: HTMLVideoElement | null = null;
+    let timeoutId: number | null = null;
+
+    setVideoFrameUrl(project?.hero_video_poster || null);
+
+    // If a poster is already configured, use it directly.
+    if (!project?.hero_video_url || project.hero_video_poster) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function captureFrame() {
+      captureVideo = document.createElement('video');
+      captureVideo.crossOrigin = 'anonymous';
+      captureVideo.muted = true;
+      captureVideo.playsInline = true;
+      captureVideo.preload = 'auto';
+      captureVideo.src = project.hero_video_url || '';
+
+      const handleLoadedData = () => {
+        if (!captureVideo || cancelled) return;
+
+        const targetTime = Math.min(0.2, Math.max(captureVideo.duration || 0, 0));
+        if (targetTime > 0) {
+          try {
+            captureVideo.currentTime = targetTime;
+            return;
+          } catch {
+            // fall through and try capturing current frame
+          }
+        }
+        handleSeeked();
+      };
+
+      const handleSeeked = () => {
+        if (!captureVideo || cancelled) return;
+
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = captureVideo.videoWidth || 0;
+          canvas.height = captureVideo.videoHeight || 0;
+
+          if (!canvas.width || !canvas.height) {
+            return;
+          }
+
+          const context = canvas.getContext('2d');
+          if (!context) return;
+
+          context.drawImage(captureVideo, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+          if (!cancelled && dataUrl) {
+            setVideoFrameUrl(dataUrl);
+          }
+        } catch {
+          // Cross-origin video may block canvas export; fallback is handled in UI.
+        }
+      };
+
+      captureVideo.addEventListener('loadeddata', handleLoadedData);
+      captureVideo.addEventListener('seeked', handleSeeked);
+      captureVideo.addEventListener('error', () => {});
+
+      // Timeout safeguard to avoid hanging capture attempts.
+      timeoutId = window.setTimeout(() => {
+        if (captureVideo && !cancelled) {
+          captureVideo.pause();
+          captureVideo.src = '';
+        }
+      }, 4000);
+    }
+
+    void captureFrame();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+      if (captureVideo) {
+        captureVideo.pause();
+        captureVideo.src = '';
+      }
+    };
+  }, [project?.hero_video_url, project?.hero_video_poster]);
 
   const handleVideoError = () => {
     console.error('Video failed to load:', project?.hero_video_url);
@@ -201,22 +284,27 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
     );
   }
 
-  const heroImageSrc = project.cover_image || "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=1200&h=800&fit=crop";
+  const coverFallbackSrc = project.cover_image || "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=1200&h=800&fit=crop";
+  const heroPreviewSrc = project.hero_video_url
+    ? (videoFrameUrl || project.hero_video_poster || null)
+    : coverFallbackSrc;
 
   return (
     <div className="flex-1 bg-[#0f0f0f] min-h-screen overflow-y-auto">
       {/* Hero Section */}
       <div className="p-0 mb-[8px]">
         <div className="max-w-full mx-auto">
-          <div className={`aspect-video bg-black overflow-hidden rounded-lg relative video-entrance ${
-            videoAnimated ? 'animate' : ''
-          }`}>
+          <div className="aspect-video bg-black overflow-hidden rounded-lg relative">
             {/* Base Hero Image */}
-            <ImageWithFallback
-              src={heroImageSrc}
-              alt={project.title}
-              className="w-full h-full object-cover"
-            />
+            {heroPreviewSrc ? (
+              <ImageWithFallback
+                src={heroPreviewSrc}
+                alt={project.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-[#111111]" />
+            )}
 
             {/* Video Overlay */}
             {project.hero_video_url && (
@@ -239,7 +327,7 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
                     muted
                     loop
                     playsInline
-                    poster={project.hero_video_poster || heroImageSrc}
+                    poster={project.hero_video_poster || undefined}
                     onError={handleVideoError}
                     onCanPlay={handleVideoCanPlay}
                     onLoadStart={() => setVideoLoading(true)}

@@ -7,6 +7,8 @@ interface SidebarProps {
   onProjectSelect: (projectId: string) => void;
   onHomeSelect: () => void;
   isMobile?: boolean;
+  onAboutHover?: () => void;
+  onProjectHover?: (projectId: string) => void;
 }
 
 function ProjectCardSkeleton({ isMobile }: { isMobile: boolean }) {
@@ -35,7 +37,14 @@ function ProjectCardSkeleton({ isMobile }: { isMobile: boolean }) {
   );
 }
 
-export function SidebarWithSupabase({ activeProject, onProjectSelect, onHomeSelect, isMobile = false }: SidebarProps) {
+export function SidebarWithSupabase({
+  activeProject,
+  onProjectSelect,
+  onHomeSelect,
+  isMobile = false,
+  onAboutHover,
+  onProjectHover,
+}: SidebarProps) {
   const { projects, loading, error } = useProjects();
 
   return (
@@ -120,6 +129,13 @@ export function SidebarWithSupabase({ activeProject, onProjectSelect, onHomeSele
           <div
             key={project.id}
             onClick={() => onProjectSelect(project.id)}
+            onMouseEnter={() => {
+              if (project.category === 'Info') {
+                onAboutHover?.();
+                return;
+              }
+              onProjectHover?.(project.id);
+            }}
             className={`
               rounded-xl cursor-pointer transition-all duration-200 group
               ${activeProject === project.id ? 'bg-[#eeeeee]' : 'bg-[#212121] hover:bg-[#424242]'}

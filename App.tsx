@@ -4,13 +4,20 @@ import { SidebarWithSupabase } from './components/SidebarWithSupabase';
 import { ContentAreaWithSupabase } from './components/ContentAreaWithSupabase';
 import { LandingPageWithSupabase } from './components/LandingPageWithSupabase';
 import { AboutContentAreaNotion } from './components/AboutContentAreaNotion';
-import { AdminCMS } from './components/AdminCMS';
-import { useProjects } from './hooks/useSupabaseData';
+import { AdminAuthGate } from './components/AdminAuthGate';
+import { prefetchProjectDetails, useProjects } from './hooks/useSupabaseData';
+import { preloadNotionAbout } from './lib/notionWarmup';
 
 export default function App() {
-  const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
-  if (isAdminRoute) {
-    return <AdminCMS />;
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const isAdminPath =
+    normalizedPath === '/admin' ||
+    normalizedPath === '/admin/login' ||
+    normalizedPath.startsWith('/admin/');
+
+  if (isAdminPath) {
+    return <AdminAuthGate pathname={normalizedPath} />;
   }
 
   return <PublicSiteApp />;
@@ -23,8 +30,11 @@ function PublicSiteApp() {
   const [showMobileContent, setShowMobileContent] = useState(false);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [shouldWarmNotion, setShouldWarmNotion] = useState(false);
+  const [aboutOpenVersion, setAboutOpenVersion] = useState(0);
   // 生产模式：始终使用Supabase数据
   const contentRef = useRef<HTMLDivElement>(null);
+  const wasAboutVisibleRef = useRef(false);
 
   // Get Supabase projects data
   const { projects: supabaseProjects, loading: projectsLoading } = useProjects();
@@ -59,6 +69,25 @@ function PublicSiteApp() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const warmupTimer = window.setTimeout(() => {
+      setShouldWarmNotion(true);
+      preloadNotionAbout();
+    }, 1200);
+
+    return () => window.clearTimeout(warmupTimer);
+  }, []);
+
+  useEffect(() => {
+    if (!supabaseProjects.length) return;
+
+    // Warm the first two non-about projects to reduce first-open latency.
+    supabaseProjects
+      .filter((project) => project.category !== 'Info' && project.title !== 'About me')
+      .slice(0, 2)
+      .forEach((project) => prefetchProjectDetails(project.id));
+  }, [supabaseProjects]);
 
   const scrollToTop = () => {
     if (contentRef.current) {
@@ -100,9 +129,25 @@ function PublicSiteApp() {
     setShowMobileContent(false);
   };
 
+  const handleAboutHover = () => {
+    setShouldWarmNotion(true);
+    preloadNotionAbout();
+  };
+
+  const handleProjectHover = (projectId: string) => {
+    prefetchProjectDetails(projectId);
+  };
+
   // Get current project from Supabase data
   const currentProject = activeProject ? supabaseProjects.find(p => p.id === activeProject) : null;
   const isAboutProject = Boolean(currentProject && (currentProject.title === 'About me' || currentProject.category === 'Info'));
+
+  useEffect(() => {
+    if (!isAboutProject && wasAboutVisibleRef.current) {
+      setAboutOpenVersion((value) => value + 1);
+    }
+    wasAboutVisibleRef.current = isAboutProject;
+  }, [isAboutProject]);
 
   // Content animation variants for Framer Motion - opacity only
   const contentVariants = {
@@ -138,6 +183,8 @@ function PublicSiteApp() {
             onProjectSelect={handleProjectSelect}
             onHomeSelect={handleHomeSelect}
             isMobile={true}
+            onAboutHover={handleAboutHover}
+            onProjectHover={handleProjectHover}
           />
         </div>
         </div>
@@ -163,28 +210,35 @@ function PublicSiteApp() {
           {/* Content with Framer Motion animation */}
           <div 
             ref={contentRef}
-            className="h-full overflow-y-auto"
+            className="relative h-full overflow-y-auto"
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeProject || 'home'}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                variants={contentVariants}
-                transition={transition}
-              >
-                {activeProject === null ? (
-                  <LandingPageWithSupabase />
-                ) : isAboutProject ? (
-                  <AboutContentAreaNotion projectId={activeProject} />
-                ) : currentProject ? (
-                  <ContentAreaWithSupabase projectId={activeProject} />
-                ) : (
-                  <LandingPageWithSupabase />
-                )}
-              </motion.div>
-            </AnimatePresence>
+            {!isAboutProject && (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeProject || 'home'}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  variants={contentVariants}
+                  transition={transition}
+                >
+                  {activeProject === null ? (
+                    <LandingPageWithSupabase />
+                  ) : currentProject ? (
+                    <ContentAreaWithSupabase projectId={activeProject} />
+                  ) : (
+                    <LandingPageWithSupabase />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            )}
+
+            <AboutContentAreaNotion
+              projectId={activeProject || 'about'}
+              isVisible={isAboutProject}
+              shouldLoad={shouldWarmNotion}
+              resetToken={aboutOpenVersion}
+            />
           </div>
         </div>
       </div>
@@ -203,36 +257,45 @@ function PublicSiteApp() {
             activeProject={activeProject}
             onProjectSelect={handleProjectSelect}
             onHomeSelect={handleHomeSelect}
+            onAboutHover={handleAboutHover}
+            onProjectHover={handleProjectHover}
           />
         </div>
         
         {/* Right Content - flex-1 to take remaining space with Framer Motion animation */}
         <div 
           ref={contentRef}
-          className={`flex-1 h-full overflow-y-auto mr-2 ${
+          className={`relative flex-1 h-full overflow-y-auto mr-2 ${
             isInitialLoad && !isPageLoaded ? 'page-load-hidden' : ''
           } ${isInitialLoad && isPageLoaded ? 'page-load-animate page-load-delay' : ''}`}
         >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeProject || 'home'}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              variants={contentVariants}
-              transition={transition}
-            >
-              {activeProject === null ? (
-                <LandingPageWithSupabase />
-              ) : isAboutProject ? (
-                <AboutContentAreaNotion projectId={activeProject} />
-              ) : currentProject ? (
-                <ContentAreaWithSupabase projectId={activeProject} />
-              ) : (
-                <LandingPageWithSupabase />
-              )}
-            </motion.div>
-          </AnimatePresence>
+          {!isAboutProject && (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeProject || 'home'}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                variants={contentVariants}
+                transition={transition}
+              >
+                {activeProject === null ? (
+                  <LandingPageWithSupabase />
+                ) : currentProject ? (
+                  <ContentAreaWithSupabase projectId={activeProject} />
+                ) : (
+                  <LandingPageWithSupabase />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          )}
+
+          <AboutContentAreaNotion
+            projectId={activeProject || 'about'}
+            isVisible={isAboutProject}
+            shouldLoad={shouldWarmNotion}
+            resetToken={aboutOpenVersion}
+          />
         </div>
       </div>
     );
@@ -249,36 +312,45 @@ function PublicSiteApp() {
           activeProject={activeProject}
           onProjectSelect={handleProjectSelect}
           onHomeSelect={handleHomeSelect}
+          onAboutHover={handleAboutHover}
+          onProjectHover={handleProjectHover}
         />
       </div>
       
       {/* Right Content - flex-1 to take remaining space with Framer Motion animation */}
       <div 
         ref={contentRef}
-        className={`flex-1 h-full overflow-y-auto mr-2 ${
+        className={`relative flex-1 h-full overflow-y-auto mr-2 ${
           isInitialLoad && !isPageLoaded ? 'page-load-hidden' : ''
         } ${isInitialLoad && isPageLoaded ? 'page-load-animate page-load-delay' : ''}`}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeProject || 'home'}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            variants={contentVariants}
-            transition={transition}
-          >
-              {activeProject === null ? (
+        {!isAboutProject && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeProject || 'home'}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={contentVariants}
+              transition={transition}
+            >
+                {activeProject === null ? (
+                  <LandingPageWithSupabase />
+                ) : currentProject ? (
+                  <ContentAreaWithSupabase projectId={activeProject} />
+                ) : (
                 <LandingPageWithSupabase />
-              ) : isAboutProject ? (
-                <AboutContentAreaNotion projectId={activeProject} />
-              ) : currentProject ? (
-                <ContentAreaWithSupabase projectId={activeProject} />
-              ) : (
-              <LandingPageWithSupabase />
-            )}
-          </motion.div>
-        </AnimatePresence>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+
+        <AboutContentAreaNotion
+          projectId={activeProject || 'about'}
+          isVisible={isAboutProject}
+          shouldLoad={shouldWarmNotion}
+          resetToken={aboutOpenVersion}
+        />
       </div>
     </div>
   );
