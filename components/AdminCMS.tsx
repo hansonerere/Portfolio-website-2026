@@ -671,6 +671,8 @@ export function AdminCMS() {
                               </Field>
                             </div>
 
+                            <GalleryMediaPreview item={item} />
+
                             <UploadField
                               label="Media URL"
                               value={item.url}
@@ -706,6 +708,68 @@ export function AdminCMS() {
       </div>
     </div>
   );
+}
+
+function GalleryMediaPreview({ item }: { item: AdminGalleryItem }) {
+  const mediaUrl = item.url.trim();
+  const fileName = getFileName(item.url);
+
+  if (!mediaUrl) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[#2a2a2a] bg-[#0f0f0f] p-4 text-sm text-[#9e9e9e]">
+        Upload or paste a media URL to preview this gallery item.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm text-[#9e9e9e]">Preview</span>
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-[#9e9e9e] hover:text-[#eeeeee] transition-colors break-all"
+        >
+          {fileName}
+        </a>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-[#2a2a2a] bg-black">
+        {item.type === 'video' ? (
+          <video
+            key={mediaUrl}
+            src={mediaUrl}
+            className="aspect-video w-full max-h-[360px] object-contain"
+            controls
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img
+            src={mediaUrl}
+            alt={item.alt_text || fileName || 'Gallery image preview'}
+            className="max-h-[360px] w-full object-contain"
+            loading="lazy"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getFileName(value: string) {
+  if (!value) return '';
+
+  try {
+    const parsed = new URL(value);
+    const segment = parsed.pathname.split('/').filter(Boolean).pop() || value;
+    return decodeURIComponent(segment);
+  } catch {
+    return value.split('/').filter(Boolean).pop() || value;
+  }
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
