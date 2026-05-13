@@ -1,4 +1,4 @@
-import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, DragEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   AdminGalleryItem,
   AdminProject,
@@ -59,6 +59,7 @@ export function AdminCMS() {
   const [sections, setSections] = useState<AdminProjectSection[]>([]);
   const [gallery, setGallery] = useState<AdminGalleryItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [draggingGalleryItemId, setDraggingGalleryItemId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -157,6 +158,52 @@ export function AdminCMS() {
 
   function updateGalleryState(id: number, field: keyof AdminGalleryItem, value: string | number) {
     setGallery((items) => items.map((item) => (item.id === id ? ({ ...item, [field]: value } as AdminGalleryItem) : item)));
+  }
+
+  function reorderGalleryItem(draggedId: number, targetId: number) {
+    if (draggedId === targetId) return;
+
+    setGallery((items) => {
+      const projectItems = items
+        .filter((item) => item.project_id === selectedProjectId)
+        .sort((a, b) => a.order_index - b.order_index);
+      const currentIndex = projectItems.findIndex((item) => item.id === draggedId);
+      const targetIndex = projectItems.findIndex((item) => item.id === targetId);
+
+      if (currentIndex === -1 || targetIndex === -1) {
+        return items;
+      }
+
+      const reorderedProjectItems = [...projectItems];
+      const [movedItem] = reorderedProjectItems.splice(currentIndex, 1);
+      reorderedProjectItems.splice(targetIndex, 0, movedItem);
+
+      const updatedOrderById = new Map(
+        reorderedProjectItems.map((item, index) => [item.id, index + 1]),
+      );
+
+      return items.map((item) => {
+        const nextOrder = updatedOrderById.get(item.id);
+        return nextOrder ? { ...item, order_index: nextOrder } : item;
+      });
+    });
+  }
+
+  function handleGalleryDragStart(event: DragEvent<HTMLButtonElement>, id: number) {
+    setDraggingGalleryItemId(id);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(id));
+  }
+
+  function handleGalleryDrop(event: DragEvent<HTMLDivElement>, targetId: number) {
+    event.preventDefault();
+    const draggedId = Number(event.dataTransfer.getData('text/plain') || draggingGalleryItemId);
+
+    if (Number.isFinite(draggedId)) {
+      reorderGalleryItem(draggedId, targetId);
+    }
+
+    setDraggingGalleryItemId(null);
   }
 
   async function handleUpload(file: File | null, folder: string, onUploaded: (url: string) => void) {
@@ -592,6 +639,22 @@ export function AdminCMS() {
                           <button
                             type="button"
                             onClick={() =>
+                              runAction(`save-gallery-order-${selectedProject.id}`, async () => {
+                                const savedItems = await Promise.all(
+                                  selectedProjectGallery.map((item) => saveGalleryItem(item)),
+                                );
+                                const savedById = new Map(savedItems.map((item) => [item.id, item]));
+                                setGallery((items) => items.map((item) => savedById.get(item.id) || item));
+                                showSuccess('Gallery order saved.');
+                              })
+                            }
+                            className={secondaryButtonClass}
+                          >
+                            Save order
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
                               runAction(`create-gallery-image-${selectedProject.id}`, async () => {
                                 const created = await createGalleryItem(selectedProject.id, 'image');
                                 setGallery((items) => [...items, created]);
@@ -619,14 +682,38 @@ export function AdminCMS() {
                       </div>
 
                       <div className="space-y-4">
-                        {selectedProjectGallery.map((item) => (
-                          <div key={item.id} className="rounded-2xl border border-[#2a2a2a] bg-[#171717] p-4 space-y-4">
+                        {selectedProjectGallery.map((item, index) => (
+                          <div
+                            key={item.id}
+                            onDragOver={(event) => {
+                              event.preventDefault();
+                              event.dataTransfer.dropEffect = 'move';
+                            }}
+                            onDrop={(event) => handleGalleryDrop(event, item.id)}
+                            className={cls(
+                              'rounded-2xl border border-[#2a2a2a] bg-[#171717] p-4 space-y-4 transition-colors',
+                              draggingGalleryItemId === item.id && 'border-[#eeeeee] bg-[#202020] opacity-70',
+                              draggingGalleryItemId !== null && draggingGalleryItemId !== item.id && 'hover:border-[#616161]',
+                            )}
+                          >
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                              <div>
-                                <h4 className="font-medium">{item.type === 'video' ? 'Video item' : 'Image item'}</h4>
-                                <p className="text-xs text-[#9e9e9e] mt-1">ID {item.id}</p>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  draggable
+                                  onDragStart={(event) => handleGalleryDragStart(event, item.id)}
+                                  onDragEnd={() => setDraggingGalleryItemId(null)}
+                                  className="cursor-grab rounded-xl border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-xs text-[#9e9e9e] active:cursor-grabbing"
+                                  title="Drag to reorder"
+                                >
+                                  Drag
+                                </button>
+                                <div>
+                                  <h4 className="font-medium">{item.type === 'video' ? 'Video item' : 'Image item'}</h4>
+                                  <p className="text-xs text-[#9e9e9e] mt-1">Position {index + 1} · ID {item.id}</p>
+                                </div>
                               </div>
-                              <div className="flex gap-2">
+                              <div className="flex flex-wrap gap-2">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -657,9 +744,6 @@ export function AdminCMS() {
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-3">
-                              <Field label="Order">
-                                <input type="number" value={item.order_index} onChange={(event) => updateGalleryState(item.id, 'order_index', Number(event.target.value))} className={inputClass} />
-                              </Field>
                               <Field label="Type">
                                 <select value={item.type} onChange={(event) => updateGalleryState(item.id, 'type', event.target.value)} className={inputClass}>
                                   <option value="image">Image</option>
@@ -668,6 +752,9 @@ export function AdminCMS() {
                               </Field>
                               <Field label="Alt text">
                                 <input value={item.alt_text || ''} onChange={(event) => updateGalleryState(item.id, 'alt_text', event.target.value)} className={inputClass} />
+                              </Field>
+                              <Field label="Order">
+                                <input type="number" value={item.order_index} onChange={(event) => updateGalleryState(item.id, 'order_index', Number(event.target.value))} className={inputClass} />
                               </Field>
                             </div>
 
@@ -723,25 +810,13 @@ function GalleryMediaPreview({ item }: { item: AdminGalleryItem }) {
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-sm text-[#9e9e9e]">Preview</span>
-        <a
-          href={mediaUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-[#9e9e9e] hover:text-[#eeeeee] transition-colors break-all"
-        >
-          {fileName}
-        </a>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-[#2a2a2a] bg-black">
+    <div className="flex flex-col gap-3 rounded-2xl border border-[#2a2a2a] bg-[#0f0f0f] p-3 sm:flex-row sm:items-center">
+      <div className="w-full overflow-hidden rounded-xl border border-[#2a2a2a] bg-black sm:w-48 md:w-56">
         {item.type === 'video' ? (
           <video
             key={mediaUrl}
             src={mediaUrl}
-            className="aspect-video w-full max-h-[360px] object-contain"
+            className="aspect-video w-full object-cover"
             controls
             muted
             playsInline
@@ -751,10 +826,24 @@ function GalleryMediaPreview({ item }: { item: AdminGalleryItem }) {
           <img
             src={mediaUrl}
             alt={item.alt_text || fileName || 'Gallery image preview'}
-            className="max-h-[360px] w-full object-contain"
+            className="aspect-video w-full object-cover"
             loading="lazy"
           />
         )}
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-xs uppercase tracking-[0.18em] text-[#757575]">Preview</p>
+        <a
+          href={mediaUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block truncate text-sm text-[#eeeeee] hover:text-white transition-colors"
+          title={fileName}
+        >
+          {fileName}
+        </a>
+        <p className="text-xs text-[#9e9e9e]">Use Move up / Move down to reorder the whole card.</p>
       </div>
     </div>
   );
@@ -828,6 +917,6 @@ const inputClass =
 const textareaClass =
   'w-full rounded-2xl border border-[#2a2a2a] bg-[#171717] px-4 py-3 text-sm text-[#eeeeee] outline-none transition-colors focus:border-[#eeeeee]';
 const secondaryButtonClass =
-  'rounded-full bg-[#212121] hover:bg-[#2a2a2a] px-4 py-2 text-sm transition-colors';
+  'rounded-full bg-[#212121] hover:bg-[#2a2a2a] px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#212121]';
 const dangerButtonClass =
   'rounded-full bg-red-500/10 border border-red-500/30 text-red-200 hover:bg-red-500/20 px-4 py-2 text-sm transition-colors';
