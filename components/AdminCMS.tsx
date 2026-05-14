@@ -60,6 +60,7 @@ export function AdminCMS() {
   const [gallery, setGallery] = useState<AdminGalleryItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [draggingGalleryItemId, setDraggingGalleryItemId] = useState<number | null>(null);
+  const [isGalleryCompact, setIsGalleryCompact] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -577,7 +578,7 @@ export function AdminCMS() {
                         </button>
                       </div>
 
-                      <div className="space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-2">
                         {selectedProjectSections.map((section) => (
                           <div key={section.id} className="rounded-2xl border border-[#2a2a2a] bg-[#171717] p-4 space-y-4">
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -638,6 +639,13 @@ export function AdminCMS() {
                         <div className="flex gap-2">
                           <button
                             type="button"
+                            onClick={() => setIsGalleryCompact((value) => !value)}
+                            className={secondaryButtonClass}
+                          >
+                            {isGalleryCompact ? 'Edit view' : 'Compact view'}
+                          </button>
+                          <button
+                            type="button"
                             onClick={() =>
                               runAction(`save-gallery-order-${selectedProject.id}`, async () => {
                                 const savedItems = await Promise.all(
@@ -681,7 +689,13 @@ export function AdminCMS() {
                         </div>
                       </div>
 
-                      <div className="space-y-4">
+                      <div
+                        className={cls(
+                          isGalleryCompact
+                            ? 'columns-1 md:columns-2 gap-2 space-y-2'
+                            : 'grid gap-4 lg:grid-cols-2',
+                        )}
+                      >
                         {selectedProjectGallery.map((item, index) => (
                           <div
                             key={item.id}
@@ -691,86 +705,110 @@ export function AdminCMS() {
                             }}
                             onDrop={(event) => handleGalleryDrop(event, item.id)}
                             className={cls(
-                              'rounded-2xl border border-[#2a2a2a] bg-[#171717] p-4 space-y-4 transition-colors',
+                              isGalleryCompact
+                                ? 'break-inside-avoid inline-block w-full mb-2 relative overflow-hidden rounded-lg border border-[#2a2a2a] bg-black transition-colors'
+                                : 'rounded-2xl border border-[#2a2a2a] bg-[#171717] p-4 space-y-4 transition-colors',
                               draggingGalleryItemId === item.id && 'border-[#eeeeee] bg-[#202020] opacity-70',
                               draggingGalleryItemId !== null && draggingGalleryItemId !== item.id && 'hover:border-[#616161]',
                             )}
                           >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                              <div className="flex items-center gap-3">
+                            {isGalleryCompact ? (
+                              <div className="absolute left-2 top-2 z-10 flex items-center gap-2">
                                 <button
                                   type="button"
                                   draggable
                                   onDragStart={(event) => handleGalleryDragStart(event, item.id)}
                                   onDragEnd={() => setDraggingGalleryItemId(null)}
-                                  className="cursor-grab rounded-xl border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-xs text-[#9e9e9e] active:cursor-grabbing"
+                                  className="cursor-grab rounded-full bg-black/70 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm active:cursor-grabbing"
                                   title="Drag to reorder"
                                 >
                                   Drag
                                 </button>
-                                <div>
-                                  <h4 className="font-medium">{item.type === 'video' ? 'Video item' : 'Image item'}</h4>
-                                  <p className="text-xs text-[#9e9e9e] mt-1">Position {index + 1} · ID {item.id}</p>
+                                <span className="rounded-full bg-black/70 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm">
+                                  {index + 1}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    draggable
+                                    onDragStart={(event) => handleGalleryDragStart(event, item.id)}
+                                    onDragEnd={() => setDraggingGalleryItemId(null)}
+                                    className="cursor-grab rounded-xl border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-xs text-[#9e9e9e] active:cursor-grabbing"
+                                    title="Drag to reorder"
+                                  >
+                                    Drag
+                                  </button>
+                                  <div>
+                                    <h4 className="font-medium">{item.type === 'video' ? 'Video item' : 'Image item'}</h4>
+                                    <p className="text-xs text-[#9e9e9e] mt-1">Position {index + 1} · ID {item.id}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      runAction(`save-gallery-${item.id}`, async () => {
+                                        const saved = await saveGalleryItem(item);
+                                        setGallery((items) => items.map((entry) => (entry.id === saved.id ? saved : entry)));
+                                        showSuccess('Gallery item saved.');
+                                      })
+                                    }
+                                    className={secondaryButtonClass}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      runAction(`delete-gallery-${item.id}`, async () => {
+                                        await deleteGalleryItem(item.id);
+                                        setGallery((items) => items.filter((entry) => entry.id !== item.id));
+                                        showSuccess('Gallery item deleted.');
+                                      })
+                                    }
+                                    className={dangerButtonClass}
+                                  >
+                                    Delete
+                                  </button>
                                 </div>
                               </div>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    runAction(`save-gallery-${item.id}`, async () => {
-                                      const saved = await saveGalleryItem(item);
-                                      setGallery((items) => items.map((entry) => (entry.id === saved.id ? saved : entry)));
-                                      showSuccess('Gallery item saved.');
-                                    })
-                                  }
-                                  className={secondaryButtonClass}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    runAction(`delete-gallery-${item.id}`, async () => {
-                                      await deleteGalleryItem(item.id);
-                                      setGallery((items) => items.filter((entry) => entry.id !== item.id));
-                                      showSuccess('Gallery item deleted.');
-                                    })
-                                  }
-                                  className={dangerButtonClass}
-                                >
-                                  Delete
-                                </button>
+                            )}
+
+                            {!isGalleryCompact && (
+                              <div className="grid gap-4 md:grid-cols-3">
+                                <Field label="Type">
+                                  <select value={item.type} onChange={(event) => updateGalleryState(item.id, 'type', event.target.value)} className={inputClass}>
+                                    <option value="image">Image</option>
+                                    <option value="video">Video</option>
+                                  </select>
+                                </Field>
+                                <Field label="Alt text">
+                                  <input value={item.alt_text || ''} onChange={(event) => updateGalleryState(item.id, 'alt_text', event.target.value)} className={inputClass} />
+                                </Field>
+                                <Field label="Order">
+                                  <input type="number" value={item.order_index} onChange={(event) => updateGalleryState(item.id, 'order_index', Number(event.target.value))} className={inputClass} />
+                                </Field>
                               </div>
-                            </div>
+                            )}
 
-                            <div className="grid gap-4 md:grid-cols-3">
-                              <Field label="Type">
-                                <select value={item.type} onChange={(event) => updateGalleryState(item.id, 'type', event.target.value)} className={inputClass}>
-                                  <option value="image">Image</option>
-                                  <option value="video">Video</option>
-                                </select>
-                              </Field>
-                              <Field label="Alt text">
-                                <input value={item.alt_text || ''} onChange={(event) => updateGalleryState(item.id, 'alt_text', event.target.value)} className={inputClass} />
-                              </Field>
-                              <Field label="Order">
-                                <input type="number" value={item.order_index} onChange={(event) => updateGalleryState(item.id, 'order_index', Number(event.target.value))} className={inputClass} />
-                              </Field>
-                            </div>
+                            <GalleryMediaPreview item={item} compact={isGalleryCompact} />
 
-                            <GalleryMediaPreview item={item} />
-
-                            <UploadField
-                              label="Media URL"
-                              value={item.url}
-                              onChange={(value) => updateGalleryState(item.id, 'url', value)}
-                              accept={item.type === 'video' ? 'video/*' : 'image/*'}
-                              onUpload={(file) =>
-                                handleUpload(file, `${getProjectStorageBase(selectedProject)}/gallery/${item.type}s`, (url) =>
-                                  updateGalleryState(item.id, 'url', url),
-                                )
-                              }
-                            />
+                            {!isGalleryCompact && (
+                              <UploadField
+                                label="Media URL"
+                                value={item.url}
+                                onChange={(value) => updateGalleryState(item.id, 'url', value)}
+                                accept={item.type === 'video' ? 'video/*' : 'image/*'}
+                                onUpload={(file) =>
+                                  handleUpload(file, `${getProjectStorageBase(selectedProject)}/gallery/${item.type}s`, (url) =>
+                                    updateGalleryState(item.id, 'url', url),
+                                  )
+                                }
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -797,7 +835,7 @@ export function AdminCMS() {
   );
 }
 
-function GalleryMediaPreview({ item }: { item: AdminGalleryItem }) {
+function GalleryMediaPreview({ item, compact = false }: { item: AdminGalleryItem; compact?: boolean }) {
   const mediaUrl = item.url.trim();
   const fileName = getFileName(item.url);
 
@@ -809,15 +847,46 @@ function GalleryMediaPreview({ item }: { item: AdminGalleryItem }) {
     );
   }
 
+  if (compact) {
+    return (
+      <div className="w-full overflow-hidden bg-black">
+        {item.type === 'video' ? (
+          <video
+            key={mediaUrl}
+            src={mediaUrl}
+            className="w-full h-auto object-cover"
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img
+            src={mediaUrl}
+            alt={item.alt_text || fileName || 'Gallery image preview'}
+            className="w-full h-auto object-cover"
+            loading="lazy"
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-[#2a2a2a] bg-[#0f0f0f] p-3 sm:flex-row sm:items-center">
-      <div className="w-full overflow-hidden rounded-xl border border-[#2a2a2a] bg-black sm:w-48 md:w-56">
+    <div
+      className={cls(
+        'flex flex-col gap-3 rounded-2xl border border-[#2a2a2a] bg-[#0f0f0f] p-3',
+        'sm:flex-row sm:items-center',
+      )}
+    >
+      <div
+        className="w-full overflow-hidden rounded-xl border border-[#2a2a2a] bg-black sm:w-48 md:w-56"
+      >
         {item.type === 'video' ? (
           <video
             key={mediaUrl}
             src={mediaUrl}
             className="aspect-video w-full object-cover"
-            controls
+            controls={!compact}
             muted
             playsInline
             preload="metadata"
@@ -843,7 +912,9 @@ function GalleryMediaPreview({ item }: { item: AdminGalleryItem }) {
         >
           {fileName}
         </a>
-        <p className="text-xs text-[#9e9e9e]">Use Move up / Move down to reorder the whole card.</p>
+        <p className="text-xs text-[#9e9e9e]">
+          {compact ? 'Drag this card to reorder.' : 'Switch to Compact view for faster drag sorting.'}
+        </p>
       </div>
     </div>
   );
