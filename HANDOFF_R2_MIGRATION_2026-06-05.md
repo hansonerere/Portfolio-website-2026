@@ -21,6 +21,7 @@ Local commits created:
 0ae1c07 docs: add R2 migration handoff notes
 c63fb7c chore: simplify R2 migration uploads
 7b32459 chore: remove unused AWS SDK lock entries
+ff13628 docs: refresh R2 migration handoff details
 ```
 
 Local GitHub HTTPS credentials were unavailable, so standard `git push` failed and the GitHub connector was used for remote updates.
@@ -169,7 +170,6 @@ Modified:
 
 ```txt
 .env.example
-components/AdminCMS.tsx
 lib/admin.ts
 package.json
 vite-env.d.ts
