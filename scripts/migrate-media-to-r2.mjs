@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createClient } from '@supabase/supabase-js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,18 +16,9 @@ const write = args.has('--write');
 const migrateAllHttpUrls = args.has('--all');
 const sqlOutputPath = path.join(repoRoot, 'media-migration-updates.sql');
 
-const uploadDriver = process.env.R2_UPLOAD_DRIVER || (
-  process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.CLOUDFLARE_ACCOUNT_ID
-    ? 's3'
-    : 'wrangler'
-);
-
 const requiredEnv = ['VITE_SUPABASE_URL', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL'];
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.VITE_SUPABASE_ANON_KEY) {
   requiredEnv.push('SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY');
-}
-if (uploadDriver === 's3') {
-  requiredEnv.push('CLOUDFLARE_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY');
 }
 
 const missing = requiredEnv.filter((key) => {
@@ -53,17 +43,6 @@ const supabase = createClient(
   },
 );
 
-const r2 = uploadDriver === 's3'
-  ? new S3Client({
-      region: 'auto',
-      endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-      },
-    })
-  : null;
-
 const mediaColumns = [
   { table: 'homepage', idColumn: 'id', columns: ['hero_video_url', 'hero_video_poster'] },
   { table: 'service_cards', idColumn: 'id', columns: ['image_url'] },
@@ -80,7 +59,7 @@ let migrated = 0;
 
 console.log(write ? 'Running R2 media migration.' : 'Running dry run. Add --write to upload and update Supabase.');
 console.log(migrateAllHttpUrls ? 'Mode: all HTTP URLs.' : 'Mode: Supabase Storage URLs only.');
-console.log(`Upload driver: ${uploadDriver}`);
+console.log('Upload driver: wrangler');
 
 for (const config of mediaColumns) {
   const selectColumns = [config.idColumn, ...config.columns].join(',');
@@ -220,19 +199,7 @@ async function migrateUrl(url) {
   const contentType = response.headers.get('content-type') || contentTypeFromPath(key);
   const body = Buffer.from(await response.arrayBuffer());
 
-  if (uploadDriver === 's3') {
-    await r2.send(
-      new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-        CacheControl: 'public, max-age=31536000, immutable',
-      }),
-    );
-  } else {
-    uploadWithWrangler(key, body, contentType);
-  }
+  uploadWithWrangler(key, body, contentType);
 
   migrated += 1;
   console.log(`Uploaded ${key}`);
