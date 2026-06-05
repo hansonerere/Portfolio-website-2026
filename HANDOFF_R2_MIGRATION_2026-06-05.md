@@ -14,18 +14,21 @@ Local path used during migration:
 
 The website media migration from Supabase Storage to Cloudflare R2 has been completed in production data.
 
-Local commit created:
+Local commits created:
 
 ```txt
 558705a feat: migrate media uploads to Cloudflare R2
+0ae1c07 docs: add R2 migration handoff notes
+c63fb7c chore: simplify R2 migration uploads
+7b32459 chore: remove unused AWS SDK lock entries
 ```
 
-The commit has not been pushed to GitHub yet because local GitHub HTTPS credentials were unavailable.
+Local GitHub HTTPS credentials were unavailable, so standard `git push` failed and the GitHub connector was used for remote updates.
 
 Current local git state at the time of handoff:
 
 ```txt
-main is ahead of origin/main by 1 commit
+main is ahead of origin/main locally because connector-created GitHub commits do not preserve local commit SHAs
 ```
 
 Push error encountered:
@@ -168,16 +171,11 @@ Modified:
 .env.example
 components/AdminCMS.tsx
 lib/admin.ts
-package-lock.json
 package.json
 vite-env.d.ts
 ```
 
-New dependency:
-
-```txt
-@aws-sdk/client-s3
-```
+No new runtime dependency is required for the migration script. It uses Wrangler for R2 uploads.
 
 New npm script:
 
@@ -251,9 +249,16 @@ The preview returned `200 OK`.
 
 ## Critical Next Step
 
-The code must be pushed to GitHub so future Cloudflare Pages automatic deploys do not overwrite the manual Wrangler deployment.
+The code must exist on GitHub so future Cloudflare Pages automatic deploys do not overwrite the manual Wrangler deployment.
 
-On a machine with valid GitHub credentials:
+Check GitHub before continuing:
+
+```bash
+git fetch origin
+git status --short --branch
+```
+
+If the remote still does not contain the R2 migration files, push from a machine with valid GitHub credentials:
 
 ```bash
 cd "/Users/hanson/Coding/Portfolio website/Portfolio-website-2026"
@@ -283,9 +288,9 @@ Alternative: configure SSH remote and push via SSH.
 
 ## Important Risk
 
-Cloudflare Pages currently has the new code because it was deployed directly with Wrangler. GitHub still has the old commit until `558705a` is pushed.
+Cloudflare Pages has the new code because it was deployed directly with Wrangler. GitHub must also contain the new code for future automatic deploys.
 
-If Cloudflare Pages auto-deploys from GitHub before the push, the site may revert to the old code without the R2 upload Function and admin upload changes.
+If Cloudflare Pages auto-deploys from old GitHub code, the site may revert to a build without the R2 upload Function and admin upload changes.
 
 The database media URLs are already migrated to R2, so public media delivery should continue to work. The main risk is future admin uploads reverting to Supabase Storage if old GitHub code redeploys.
 

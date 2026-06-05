@@ -29,12 +29,11 @@ Add these values to `.env.local` before running the migration:
 
 ```env
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id
-R2_ACCESS_KEY_ID=your_r2_access_key_id
-R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
 R2_BUCKET=podstudio-media
 R2_PUBLIC_BASE_URL=https://media.example.com
 ```
+
+The migration script uploads through Wrangler. Run `npx wrangler login` first on the machine doing the migration.
 
 ## Commands
 
