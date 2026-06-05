@@ -1,6 +1,7 @@
 import { supabase, AboutCard, AboutPage, Client, ContactInfo, GalleryItem, Homepage, Project, ProjectSection, ServiceCard } from './supabase';
 
 const STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_STORAGE_BUCKET || 'site-assets';
+const MEDIA_UPLOAD_ENDPOINT = import.meta.env.VITE_MEDIA_UPLOAD_ENDPOINT || '';
 
 export interface AdminHomepageRecord extends Omit<Homepage, 'services'> {}
 export interface AdminAboutPageRecord extends Omit<AboutPage, 'cards'> {}
@@ -372,6 +373,10 @@ export async function deleteGalleryItem(id: number) {
 }
 
 export async function uploadAsset(file: File, folder: string) {
+  if (MEDIA_UPLOAD_ENDPOINT) {
+    return uploadAssetToMediaEndpoint(file, folder);
+  }
+
   const fileExt = file.name.split('.').pop() || 'bin';
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
   const filePath = `${folder}/${Date.now()}-${safeName.replace(/\.[^.]+$/, '')}.${fileExt}`;
@@ -387,6 +392,41 @@ export async function uploadAsset(file: File, folder: string) {
 
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
   return data.publicUrl;
+}
+
+async function uploadAssetToMediaEndpoint(file: File, folder: string) {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!session?.access_token) {
+    throw new Error('You must be signed in to upload media.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+
+  const response = await fetch(MEDIA_UPLOAD_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: formData,
+  });
+
+  const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+
+  if (!response.ok || !payload?.url) {
+    throw new Error(payload?.error || `Media upload failed with status ${response.status}.`);
+  }
+
+  return payload.url;
 }
 
 export function parseContactInfo(value: string): ContactInfo[] {

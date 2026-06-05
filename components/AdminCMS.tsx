@@ -213,7 +213,7 @@ export function AdminCMS() {
     await runAction(`upload-${folder}-${file.name}`, async () => {
       const url = await uploadAsset(file, folder);
       onUploaded(url);
-      showSuccess('Asset uploaded to Supabase Storage.');
+      showSuccess('Asset uploaded.');
     });
   }
 
@@ -236,7 +236,7 @@ export function AdminCMS() {
             <p className="text-sm uppercase tracking-[0.24em] text-[#9e9e9e]">Admin CMS</p>
             <h1 className="text-3xl md:text-5xl font-['Red_Hat_Display'] font-bold leading-none mt-2">Website Content Manager</h1>
             <p className="text-[#9e9e9e] mt-3 max-w-2xl">
-              Homepage and project settings are now separated. Media uploads go directly to your Supabase Storage bucket.
+              Homepage and project settings are separated. Media uploads use the configured storage endpoint.
             </p>
           </div>
           <div className="flex gap-3">
@@ -826,8 +826,8 @@ export function AdminCMS() {
 
         <section className="rounded-3xl bg-[#171717] border border-[#2a2a2a] p-5 md:p-6 space-y-3 text-sm text-[#9e9e9e]">
           <h2 className="text-lg font-medium text-[#eeeeee]">Supabase setup notes</h2>
-          <p>The admin panel uploads files to the Supabase Storage bucket named <code>site-assets</code> by default.</p>
-          <p>You can override that bucket with <code>VITE_SUPABASE_STORAGE_BUCKET</code> in your local environment.</p>
+          <p>Set <code>VITE_MEDIA_UPLOAD_ENDPOINT=/api/upload</code> to upload new media to Cloudflare R2.</p>
+          <p>If that endpoint is not set, uploads use the legacy Supabase Storage bucket.</p>
           <p>This admin now manages homepage and project content only. The old About page is no longer part of the CMS.</p>
         </section>
       </div>
