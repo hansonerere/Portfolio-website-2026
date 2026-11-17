@@ -1,5 +1,9 @@
 # Handoff: Cloudflare R2 Media Migration
 
+> Historical media-only migration. Superseded by
+> [the complete Cloudflare migration](HANDOFF_CLOUDFLARE_MIGRATION_2026-11-17.md).
+> Supabase is no longer required; do not restore the old auth/environment setup.
+
 Date: 2026-06-05
 
 Repository: `hansonerere/Portfolio-website-2026`

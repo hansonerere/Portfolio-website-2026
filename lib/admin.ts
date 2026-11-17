@@ -1,8 +1,5 @@
-import { supabase, AboutCard, AboutPage, Client, ContactInfo, GalleryItem, Homepage, Project, ProjectSection, ServiceCard } from './supabase';
-
-const STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_STORAGE_BUCKET || 'site-assets';
-const MEDIA_UPLOAD_ENDPOINT = import.meta.env.VITE_MEDIA_UPLOAD_ENDPOINT || '';
-
+import type { AboutCard, AboutPage, Client, ContactInfo, GalleryItem, Homepage, Project, ProjectSection, ServiceCard } from './content';
+import { api } from './api';
 export interface AdminHomepageRecord extends Omit<Homepage, 'services'> {}
 export interface AdminAboutPageRecord extends Omit<AboutPage, 'cards'> {}
 
@@ -37,398 +34,91 @@ export interface AdminContentData {
 }
 
 export async function fetchAdminContent(): Promise<AdminContentData> {
-  const [
-    homepageResult,
-    servicesResult,
-    aboutPageResult,
-    aboutCardsResult,
-    projectsResult,
-    projectSectionsResult,
-    projectGalleryResult,
-  ] = await Promise.all([
-    supabase.from('homepage').select('*').order('id').limit(1).maybeSingle(),
-    supabase.from('service_cards').select('*').order('order_index'),
-    supabase.from('about_page').select('*').order('id').limit(1).maybeSingle(),
-    supabase.from('about_cards').select('*').order('order_index'),
-    supabase.from('projects').select('*').order('order_index'),
-    supabase.from('project_sections').select('*').order('order_index'),
-    supabase.from('project_gallery').select('*').order('order_index'),
-  ]);
-
-  throwIfError(homepageResult.error);
-  throwIfError(servicesResult.error);
-  throwIfError(aboutPageResult.error);
-  throwIfError(aboutCardsResult.error);
-  throwIfError(projectsResult.error);
-  throwIfError(projectSectionsResult.error);
-  throwIfError(projectGalleryResult.error);
-
-  return {
-    homepage: homepageResult.data as AdminHomepageRecord | null,
-    services: (servicesResult.data || []) as AdminServiceCard[],
-    aboutPage: aboutPageResult.data as AdminAboutPageRecord | null,
-    aboutCards: (aboutCardsResult.data || []) as AdminAboutCard[],
-    projects: ((projectsResult.data || []) as AdminProject[]).filter(
-      (project) => project.title !== 'About me' && project.category !== 'Info',
-    ),
-    projectSections: (projectSectionsResult.data || []) as AdminProjectSection[],
-    projectGallery: (projectGalleryResult.data || []) as AdminGalleryItem[],
-  };
+  const data = await api<AdminContentData>('/api/admin/content');
+  return { ...data, projects: data.projects.filter(project => project.title !== 'About me' && project.category !== 'Info') };
 }
 
-export async function saveHomepage(homepage: Pick<AdminHomepageRecord, 'id' | 'hero_video_url' | 'hero_video_poster'>) {
-  const result = await supabase
-    .from('homepage')
-    .update({
-      hero_video_url: homepage.hero_video_url,
-      hero_video_poster: homepage.hero_video_poster || null,
-    })
-    .eq('id', homepage.id)
-    .select()
-    .single();
-
-  throwIfError(result.error);
-  return result.data as AdminHomepageRecord;
+function pick(value: object, fields: string[]) {
+  return Object.fromEntries(fields.map(field => [field, Reflect.get(value, field) ?? null]));
 }
 
-export async function createHomepage() {
-  const result = await supabase
-    .from('homepage')
-    .insert({
-      hero_video_url: '',
-      hero_video_poster: null,
-    })
-    .select()
-    .single();
-
-  throwIfError(result.error);
-  return result.data as AdminHomepageRecord;
+function saveRecord<T>(table: string, id: string | number, values: object) {
+  return api<T>('/api/admin/records', { method: id ? 'PUT' : 'POST', body: JSON.stringify({ table, id: id || undefined, values }) });
 }
 
-export async function saveServiceCard(card: Pick<AdminServiceCard, 'id' | 'homepage_id' | 'order_index' | 'number' | 'title' | 'description' | 'image_url'>) {
-  const payload = {
-    homepage_id: card.homepage_id,
-    order_index: card.order_index,
-    number: card.number,
-    title: card.title,
-    description: card.description,
-    image_url: card.image_url,
-  };
-
-  if (!card.id) {
-    const result = await supabase.from('service_cards').insert(payload).select().single();
-    throwIfError(result.error);
-    return result.data as AdminServiceCard;
-  }
-
-  const result = await supabase.from('service_cards').update(payload).eq('id', card.id).select().single();
-  throwIfError(result.error);
-  return result.data as AdminServiceCard;
+function removeRecord(table: string, id: number | string) {
+  return api<{ ok: boolean }>('/api/admin/records', { method: 'DELETE', body: JSON.stringify({ table, id }) });
 }
 
+function nextOrder(items: { order_index: number }[]) {
+  return Math.max(0, ...items.map(item => item.order_index)) + 1;
+}
+
+export function saveHomepage(item: Pick<AdminHomepageRecord, 'id' | 'hero_video_url' | 'hero_video_poster'>) {
+  return saveRecord<AdminHomepageRecord>('homepage', item.id, pick(item, ['hero_video_url', 'hero_video_poster']));
+}
+export function createHomepage() {
+  return saveRecord<AdminHomepageRecord>('homepage', 0, { hero_video_url: '', hero_video_poster: null });
+}
+export function saveServiceCard(item: Pick<AdminServiceCard, 'id' | 'homepage_id' | 'order_index' | 'number' | 'title' | 'description' | 'image_url'>) {
+  return saveRecord<AdminServiceCard>('service_cards', item.id, pick(item, ['homepage_id', 'order_index', 'number', 'title', 'description', 'image_url']));
+}
 export async function createServiceCard(homepageId: number) {
-  const { data, error } = await supabase
-    .from('service_cards')
-    .select('order_index')
-    .eq('homepage_id', homepageId)
-    .order('order_index', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  throwIfError(error);
-
-  return saveServiceCard({
-    id: 0,
-    homepage_id: homepageId,
-    order_index: (data?.order_index || 0) + 1,
-    number: '/00',
-    title: 'New service',
-    description: '',
-    image_url: '',
-  });
+  const data = await fetchAdminContent();
+  return saveServiceCard({ id: 0, homepage_id: homepageId, order_index: nextOrder(data.services.filter(item => item.homepage_id === homepageId)), number: '/00', title: 'New service', description: '', image_url: '' });
 }
+export const deleteServiceCard = (id: number) => removeRecord('service_cards', id);
 
-export async function deleteServiceCard(id: number) {
-  const result = await supabase.from('service_cards').delete().eq('id', id);
-  throwIfError(result.error);
+export function saveAboutPage(item: Pick<AdminAboutPageRecord, 'id' | 'hero_title'>) {
+  return saveRecord<AdminAboutPageRecord>('about_page', item.id, { hero_title: item.hero_title });
 }
-
-export async function saveAboutPage(aboutPage: Pick<AdminAboutPageRecord, 'id' | 'hero_title'>) {
-  const result = await supabase
-    .from('about_page')
-    .update({ hero_title: aboutPage.hero_title })
-    .eq('id', aboutPage.id)
-    .select()
-    .single();
-
-  throwIfError(result.error);
-  return result.data as AdminAboutPageRecord;
+export function createAboutPage() { return saveRecord<AdminAboutPageRecord>('about_page', 0, { hero_title: 'Hanson' }); }
+export function saveAboutCard(item: Pick<AdminAboutCard, 'id' | 'about_page_id' | 'order_index' | 'number' | 'title' | 'content' | 'image_url' | 'contact_info' | 'clients'>) {
+  return saveRecord<AdminAboutCard>('about_cards', item.id, pick(item, ['about_page_id', 'order_index', 'number', 'title', 'content', 'image_url', 'contact_info', 'clients']));
 }
-
-export async function createAboutPage() {
-  const result = await supabase.from('about_page').insert({ hero_title: 'Hanson' }).select().single();
-  throwIfError(result.error);
-  return result.data as AdminAboutPageRecord;
-}
-
-export async function saveAboutCard(card: Pick<AdminAboutCard, 'id' | 'about_page_id' | 'order_index' | 'number' | 'title' | 'content' | 'image_url' | 'contact_info' | 'clients'>) {
-  const payload = {
-    about_page_id: card.about_page_id,
-    order_index: card.order_index,
-    number: card.number,
-    title: card.title,
-    content: card.content,
-    image_url: card.image_url || null,
-    contact_info: normalizeJsonField(card.contact_info),
-    clients: normalizeJsonField(card.clients),
-  };
-
-  if (!card.id) {
-    const result = await supabase.from('about_cards').insert(payload).select().single();
-    throwIfError(result.error);
-    return result.data as AdminAboutCard;
-  }
-
-  const result = await supabase.from('about_cards').update(payload).eq('id', card.id).select().single();
-  throwIfError(result.error);
-  return result.data as AdminAboutCard;
-}
-
 export async function createAboutCard(aboutPageId: number) {
-  const { data, error } = await supabase
-    .from('about_cards')
-    .select('order_index')
-    .eq('about_page_id', aboutPageId)
-    .order('order_index', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  throwIfError(error);
-
-  return saveAboutCard({
-    id: 0,
-    about_page_id: aboutPageId,
-    order_index: (data?.order_index || 0) + 1,
-    number: '/00',
-    title: 'New card',
-    content: '',
-    image_url: '',
-    contact_info: [] as ContactInfo[],
-    clients: [] as Client[],
-  });
+  const data = await fetchAdminContent();
+  return saveAboutCard({ id: 0, about_page_id: aboutPageId, order_index: nextOrder(data.aboutCards.filter(item => item.about_page_id === aboutPageId)), number: '/00', title: 'New card', content: '', image_url: '', contact_info: [], clients: [] });
 }
+export const deleteAboutCard = (id: number) => removeRecord('about_cards', id);
 
-export async function deleteAboutCard(id: number) {
-  const result = await supabase.from('about_cards').delete().eq('id', id);
-  throwIfError(result.error);
+export function saveProject(item: Pick<AdminProject, 'id' | 'title' | 'description' | 'year' | 'category' | 'cover_image' | 'hero_video_url' | 'hero_video_poster' | 'is_active' | 'order_index'>) {
+  return saveRecord<AdminProject>('projects', item.id, pick(item, ['title', 'description', 'year', 'category', 'cover_image', 'hero_video_url', 'hero_video_poster', 'is_active', 'order_index']));
 }
-
-export async function saveProject(project: Pick<AdminProject, 'id' | 'title' | 'description' | 'year' | 'category' | 'cover_image' | 'hero_video_url' | 'hero_video_poster' | 'is_active' | 'order_index'>) {
-  const payload = {
-    title: project.title,
-    description: project.description,
-    year: project.year,
-    category: project.category,
-    cover_image: project.cover_image,
-    hero_video_url: project.hero_video_url || null,
-    hero_video_poster: project.hero_video_poster || null,
-    is_active: project.is_active,
-    order_index: project.order_index,
-  };
-
-  if (!project.id) {
-    const result = await supabase.from('projects').insert({
-      id: crypto.randomUUID(),
-      ...payload,
-    }).select().single();
-    throwIfError(result.error);
-    return result.data as AdminProject;
-  }
-
-  const result = await supabase.from('projects').update(payload).eq('id', project.id).select().single();
-  throwIfError(result.error);
-  return result.data as AdminProject;
-}
-
 export async function createProject() {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('order_index')
-    .order('order_index', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  throwIfError(error);
-
-  const result = await supabase.from('projects').insert({
-    id: crypto.randomUUID(),
-    title: 'New project',
-    description: '',
-    year: new Date().getFullYear().toString(),
-    category: 'Project',
-    cover_image: '',
-    hero_video_url: '',
-    hero_video_poster: '',
-    is_active: true,
-    order_index: (data?.order_index || 0) + 1,
-  }).select().single();
-
-  throwIfError(result.error);
-  return result.data as AdminProject;
+  const data = await fetchAdminContent();
+  return saveProject({ id: '', title: 'New project', description: '', year: new Date().getFullYear().toString(), category: 'Project', cover_image: '', hero_video_url: '', hero_video_poster: '', is_active: true, order_index: nextOrder(data.projects) });
 }
+export const deleteProject = (id: string) => removeRecord('projects', id);
 
-export async function deleteProject(id: string) {
-  const result = await supabase.from('projects').delete().eq('id', id);
-  throwIfError(result.error);
+export function saveProjectSection(item: Pick<AdminProjectSection, 'id' | 'project_id' | 'order_index' | 'title' | 'content'>) {
+  return saveRecord<AdminProjectSection>('project_sections', item.id, pick(item, ['project_id', 'order_index', 'title', 'content']));
 }
-
-export async function saveProjectSection(section: Pick<AdminProjectSection, 'id' | 'project_id' | 'order_index' | 'title' | 'content'>) {
-  const payload = {
-    project_id: section.project_id,
-    order_index: section.order_index,
-    title: section.title,
-    content: section.content,
-  };
-
-  if (!section.id) {
-    const result = await supabase.from('project_sections').insert(payload).select().single();
-    throwIfError(result.error);
-    return result.data as AdminProjectSection;
-  }
-
-  const result = await supabase.from('project_sections').update(payload).eq('id', section.id).select().single();
-  throwIfError(result.error);
-  return result.data as AdminProjectSection;
-}
-
 export async function createProjectSection(projectId: string) {
-  const { data, error } = await supabase
-    .from('project_sections')
-    .select('order_index')
-    .eq('project_id', projectId)
-    .order('order_index', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  throwIfError(error);
-
-  return saveProjectSection({
-    id: 0,
-    project_id: projectId,
-    order_index: (data?.order_index || 0) + 1,
-    title: 'New section',
-    content: '',
-  });
+  const data = await fetchAdminContent();
+  return saveProjectSection({ id: 0, project_id: projectId, order_index: nextOrder(data.projectSections.filter(item => item.project_id === projectId)), title: 'New section', content: '' });
 }
+export const deleteProjectSection = (id: number) => removeRecord('project_sections', id);
 
-export async function deleteProjectSection(id: number) {
-  const result = await supabase.from('project_sections').delete().eq('id', id);
-  throwIfError(result.error);
+export function saveGalleryItem(item: Pick<AdminGalleryItem, 'id' | 'project_id' | 'order_index' | 'type' | 'layout_span' | 'url' | 'alt_text'>) {
+  return saveRecord<AdminGalleryItem>('project_gallery', item.id, pick({ ...item, layout_span: item.layout_span || 'half' }, ['project_id', 'order_index', 'type', 'layout_span', 'url', 'alt_text']));
 }
-
-export async function saveGalleryItem(item: Pick<AdminGalleryItem, 'id' | 'project_id' | 'order_index' | 'type' | 'url' | 'alt_text'>) {
-  const payload = {
-    project_id: item.project_id,
-    order_index: item.order_index,
-    type: item.type,
-    url: item.url,
-    alt_text: item.alt_text || null,
-  };
-
-  if (!item.id) {
-    const result = await supabase.from('project_gallery').insert(payload).select().single();
-    throwIfError(result.error);
-    return result.data as AdminGalleryItem;
-  }
-
-  const result = await supabase.from('project_gallery').update(payload).eq('id', item.id).select().single();
-  throwIfError(result.error);
-  return result.data as AdminGalleryItem;
-}
-
 export async function createGalleryItem(projectId: string, type: 'image' | 'video' = 'image') {
-  const { data, error } = await supabase
-    .from('project_gallery')
-    .select('order_index')
-    .eq('project_id', projectId)
-    .order('order_index', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  throwIfError(error);
-
-  return saveGalleryItem({
-    id: 0,
-    project_id: projectId,
-    order_index: (data?.order_index || 0) + 1,
-    type,
-    url: '',
-    alt_text: '',
-  });
+  const data = await fetchAdminContent();
+  return saveGalleryItem({ id: 0, project_id: projectId, order_index: nextOrder(data.projectGallery.filter(item => item.project_id === projectId)), type, layout_span: 'half', url: '', alt_text: '' });
 }
-
-export async function deleteGalleryItem(id: number) {
-  const result = await supabase.from('project_gallery').delete().eq('id', id);
-  throwIfError(result.error);
+export const deleteGalleryItem = (id: number) => removeRecord('project_gallery', id);
+export function saveGalleryOrder(projectId: string, ids: number[]) {
+  return api<{ ok: boolean }>('/api/admin/gallery-order', { method: 'POST', body: JSON.stringify({ projectId, ids }) });
 }
 
 export async function uploadAsset(file: File, folder: string) {
-  if (MEDIA_UPLOAD_ENDPOINT) {
-    return uploadAssetToMediaEndpoint(file, folder);
-  }
-
-  const fileExt = file.name.split('.').pop() || 'bin';
-  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-').toLowerCase();
-  const filePath = `${folder}/${Date.now()}-${safeName.replace(/\.[^.]+$/, '')}.${fileExt}`;
-
-  const uploadResult = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true,
-    });
-
-  throwIfError(uploadResult.error);
-
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-  return data.publicUrl;
+  const body = new FormData();
+  body.append('file', file);
+  body.append('folder', folder);
+  const result = await api<{ url: string }>('/api/upload', { method: 'POST', body });
+  return result.url;
 }
-
-async function uploadAssetToMediaEndpoint(file: File, folder: string) {
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!session?.access_token) {
-    throw new Error('You must be signed in to upload media.');
-  }
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('folder', folder);
-
-  const response = await fetch(MEDIA_UPLOAD_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: formData,
-  });
-
-  const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
-
-  if (!response.ok || !payload?.url) {
-    throw new Error(payload?.error || `Media upload failed with status ${response.status}.`);
-  }
-
-  return payload.url;
-}
-
 export function parseContactInfo(value: string): ContactInfo[] {
   return parseJsonArray<ContactInfo>(value, ['label', 'value', 'type']);
 }
@@ -458,17 +148,4 @@ function parseJsonArray<T>(value: string, requiredKeys: string[]): T[] {
   });
 
   return parsed as T[];
-}
-
-function normalizeJsonField(value: unknown) {
-  if (!value || (Array.isArray(value) && value.length === 0)) {
-    return null;
-  }
-  return value;
-}
-
-function throwIfError(error: unknown) {
-  if (error) {
-    throw error;
-  }
 }

@@ -79,6 +79,7 @@ CREATE TABLE project_gallery (
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
   order_index INTEGER NOT NULL,
   type VARCHAR(10) NOT NULL CHECK (type IN ('image', 'video')),
+  layout_span VARCHAR(10) NOT NULL DEFAULT 'half' CHECK (layout_span IN ('full', 'half')),
   url TEXT NOT NULL,
   alt_text VARCHAR(200),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -113,11 +114,11 @@ CREATE TRIGGER update_project_gallery_updated_at BEFORE UPDATE ON project_galler
 -- 插入示例数据
 
 -- 1. 首页数据
-INSERT INTO homepage (hero_video_url, hero_video_poster) VALUES 
+INSERT INTO homepage (hero_video_url, hero_video_poster) VALUES
 ('https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_2mb.mp4', 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=1200&h=800&fit=crop');
 
 -- 2. 服务卡片数据
-INSERT INTO service_cards (homepage_id, order_index, number, title, description, image_url) VALUES 
+INSERT INTO service_cards (homepage_id, order_index, number, title, description, image_url) VALUES
 (1, 1, '/01', 'Web design', 'Responsive, editorial-driven sites that balance form and function. Built to scale and stand out.', 'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=600&h=450&fit=crop'),
 (1, 2, '/02', 'Branding', 'From logo to launch, we craft brand systems that speak with confidence.', 'https://images.unsplash.com/photo-1634712282287-14ed57b9cc89?w=600&h=450&fit=crop'),
 (1, 3, '/03', 'Art Direction', 'Conceptual direction for photo shoots, campaigns, and digital experiences. Visual storytelling with precision.', 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&h=450&fit=crop'),
@@ -129,29 +130,29 @@ INSERT INTO service_cards (homepage_id, order_index, number, title, description,
 INSERT INTO about_page (hero_title) VALUES ('Hanson');
 
 -- 4. About页面卡片数据 (确保每行都有8个值对应8个字段)
-INSERT INTO about_cards (about_page_id, order_index, number, title, content, image_url, contact_info, clients) VALUES 
+INSERT INTO about_cards (about_page_id, order_index, number, title, content, image_url, contact_info, clients) VALUES
 (1, 1, '/01', 'Our studio', 'Our studio centers on contemporary design studio creating thoughtful, modern brands and experiences that stand out and stand for something. Rooted in collaboration, clarity and experimentation, we work closely with companies, creatives, and culture-makers to bring ideas into sharp visual focus. From early-stage startups to established institutions, our work lives across digital products, brand identities, editorial systems, campaigns, and cultural platforms.', 'https://images.unsplash.com/photo-1544027993-37dbfe43562a?w=600&h=450&fit=crop&crop=faces', NULL, NULL),
 (1, 2, '/02', 'Background', 'Founded by a team with diverse design, art direction, visual identity, and digital projects STUDIO KOLLEKTIV brings strategic and craft to build flexible design systems for ambitious ideas. Our studio was shaped by real-world constraints — tight timelines, lean teams, and the need to punch above our weight.', 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&h=450&fit=crop', NULL, NULL),
 (1, 3, '/03', 'Clients', 'Our valued clients and their project years.', NULL, NULL, '[{"name": "[Start-up Client Name]", "year": "2025"}, {"name": "[Independent Creator Work]", "year": "2025"}, {"name": "[Culture-focused Brand]", "year": "2024"}]'),
 (1, 4, '/04', 'Contact', 'Get in touch with us for your next project.', NULL, '[{"label": "General enquiries", "value": "hello@studiokollektiv.co", "type": "email"}, {"label": "Business enquiries", "value": "projects@studiokollektiv.co", "type": "email"}, {"label": "Social media", "value": "Linkedin", "type": "social"}, {"label": "Social media", "value": "Twitter", "type": "social"}]', NULL);
 
 -- 5. 示例项目数据
-INSERT INTO projects (id, title, description, year, category, cover_image, hero_video_url, hero_video_poster, is_active, order_index) VALUES 
+INSERT INTO projects (id, title, description, year, category, cover_image, hero_video_url, hero_video_poster, is_active, order_index) VALUES
 ('550e8400-e29b-41d4-a716-446655440000', 'Casablanco', 'Rebranding for Californian luxurious furniture maker, Casablanco.', '2025', 'Project', 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1200&h=800&fit=crop', 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_2mb.mp4', 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=1200&h=800&fit=crop', true, 1),
 ('550e8400-e29b-41d4-a716-446655440001', 'Drowning in Dusk', 'Brand new identity for a renowned fashion designer.', '2025', 'Project', 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=1200&h=800&fit=crop', NULL, NULL, true, 2),
 ('550e8400-e29b-41d4-a716-446655440002', 'About me', 'We are a studio founded by Scandinavian expats in sunny Los Angeles. We work with globally recognized brands, as well as local creatives. Reach out to us for your next campaign or rebranding!', '2025', 'Info', 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=1200&h=800&fit=crop', NULL, NULL, true, 0);
 
 -- 6. 项目内容段落
-INSERT INTO project_sections (project_id, order_index, title, content) VALUES 
+INSERT INTO project_sections (project_id, order_index, title, content) VALUES
 ('550e8400-e29b-41d4-a716-446655440000', 1, 'Process', 'We began by stripping the brand back to its foundations. The previous identity leaned heavily on ornament — we replaced it with structural elegance, minimal type, and a calming, sun-washed palette.'),
 ('550e8400-e29b-41d4-a716-446655440001', 1, 'Concept', 'A complete visual identity for an emerging fashion designer, focusing on the intersection of darkness and light, creating a mysterious yet approachable brand presence.');
 
 -- 7. 项目画廊
-INSERT INTO project_gallery (project_id, order_index, type, url, alt_text) VALUES 
-('550e8400-e29b-41d4-a716-446655440000', 1, 'image', 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&h=700&fit=crop', 'Casablanco furniture piece'),
-('550e8400-e29b-41d4-a716-446655440000', 2, 'image', 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&h=800&fit=crop', 'Casablanco brand materials'),
-('550e8400-e29b-41d4-a716-446655440000', 3, 'image', 'https://images.unsplash.com/photo-1622020886177-239ee6e69b39?w=600&h=600&fit=crop', 'Casablanco workspace'),
-('550e8400-e29b-41d4-a716-446655440001', 1, 'image', 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&h=800&fit=crop', 'Fashion design concept'),
-('550e8400-e29b-41d4-a716-446655440001', 2, 'image', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=900&fit=crop', 'Fashion collection piece'),
-('550e8400-e29b-41d4-a716-446655440002', 1, 'image', 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=600&h=800&fit=crop', 'Studio workspace'),
-('550e8400-e29b-41d4-a716-446655440002', 2, 'image', 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&h=600&fit=crop', 'Design process');
+INSERT INTO project_gallery (project_id, order_index, type, layout_span, url, alt_text) VALUES
+('550e8400-e29b-41d4-a716-446655440000', 1, 'image', 'full', 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600&h=700&fit=crop', 'Casablanco furniture piece'),
+('550e8400-e29b-41d4-a716-446655440000', 2, 'image', 'half', 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&h=800&fit=crop', 'Casablanco brand materials'),
+('550e8400-e29b-41d4-a716-446655440000', 3, 'image', 'half', 'https://images.unsplash.com/photo-1622020886177-239ee6e69b39?w=600&h=600&fit=crop', 'Casablanco workspace'),
+('550e8400-e29b-41d4-a716-446655440001', 1, 'image', 'full', 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=600&h=800&fit=crop', 'Fashion design concept'),
+('550e8400-e29b-41d4-a716-446655440001', 2, 'image', 'half', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=900&fit=crop', 'Fashion collection piece'),
+('550e8400-e29b-41d4-a716-446655440002', 1, 'image', 'full', 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=600&h=800&fit=crop', 'Studio workspace'),
+('550e8400-e29b-41d4-a716-446655440002', 2, 'image', 'half', 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&h=600&fit=crop', 'Design process');

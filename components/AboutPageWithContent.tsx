@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAboutPage } from '../hooks/useSupabaseData';
-import { ContactInfo, Client } from '../lib/supabase';
+import { useAboutPage } from '../hooks/useContentData';
+import { ContactInfo, Client } from '../lib/content';
 
 interface AboutPageProps {
   onClose: () => void;
@@ -50,7 +50,7 @@ function AboutCardSkeleton() {
   );
 }
 
-export function AboutPageWithSupabase({ onClose }: AboutPageProps) {
+export function AboutPageWithContent({ onClose }: AboutPageProps) {
   const { aboutPage, aboutCards, loading, error } = useAboutPage();
 
   if (error) {

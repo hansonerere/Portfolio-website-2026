@@ -1,12 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
-// 这些环境变量需要在.env.local中设置
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// 数据库类型定义
 export interface Homepage {
   id: number;
   hero_video_url: string;
@@ -88,6 +79,7 @@ export interface GalleryItem {
   id: number;
   order_index: number;
   type: 'image' | 'video';
+  layout_span?: 'full' | 'half';
   url: string;
   alt_text?: string;
   created_at: string;

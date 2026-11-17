@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useProject } from '../hooks/useSupabaseData';
+import { useProject } from '../hooks/useContentData';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useIntersectionObserver } from './useIntersectionObserver';
 
@@ -10,11 +10,13 @@ interface ContentAreaProps {
 function GalleryImage({ 
   src, 
   alt, 
-  index 
+  index,
+  layoutSpan,
 }: { 
   src: string; 
   alt: string; 
-  index: number; 
+  index: number;
+  layoutSpan?: 'full' | 'half';
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +41,7 @@ function GalleryImage({
   return (
     <div 
       ref={ref}
-      className={`break-inside-avoid inline-block w-full mb-[8px] gallery-fade-in ${
+      className={`${layoutSpan === 'full' ? 'md:col-span-2' : 'md:col-span-1'} gallery-fade-in ${
         hasBeenVisible ? 'animate' : ''
       } ${delayClass}`}
     >
@@ -65,10 +67,12 @@ function GalleryImage({
 
 function GalleryVideo({ 
   src, 
-  index 
+  index,
+  layoutSpan,
 }: { 
   src: string; 
-  index: number; 
+  index: number;
+  layoutSpan?: 'full' | 'half';
 }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +93,7 @@ function GalleryVideo({
   return (
     <div 
       ref={ref}
-      className={`break-inside-avoid inline-block w-full mb-[8px] gallery-fade-in ${
+      className={`${layoutSpan === 'full' ? 'md:col-span-2' : 'md:col-span-1'} gallery-fade-in ${
         hasBeenVisible ? 'animate' : ''
       } ${delayClass}`}
     >
@@ -118,7 +122,7 @@ function GalleryVideo({
   );
 }
 
-export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
+export function ProjectContent({ projectId }: ContentAreaProps) {
   const { project, sections, gallery, loading, error } = useProject(projectId);
   const [videoError, setVideoError] = useState(false);
   const [videoLoading, setVideoLoading] = useState(true);
@@ -395,23 +399,27 @@ export function ContentAreaWithSupabase({ projectId }: ContentAreaProps) {
       {gallery && gallery.length > 0 && (
         <div className="p-0 mt-2">
           <div className="max-w-full mx-auto">
-            <div className="columns-1 md:columns-2 gap-2 space-y-2">
-              {gallery.map((item, index) => (
-                item.type === 'image' ? (
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              {gallery.map((item, index) => {
+                const layoutSpan = item.layout_span || 'half';
+
+                return item.type === 'image' ? (
                   <GalleryImage
                     key={item.id}
                     src={item.url}
                     alt={item.alt_text || `${project.title} gallery image ${index + 1}`}
                     index={index}
+                    layoutSpan={layoutSpan}
                   />
                 ) : (
                   <GalleryVideo
                     key={item.id}
                     src={item.url}
                     index={index}
+                    layoutSpan={layoutSpan}
                   />
-                )
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { ChangeEvent, DragEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { AdminAboutEditor } from './AdminAboutEditor';
 import {
   AdminGalleryItem,
   AdminProject,
@@ -15,6 +16,7 @@ import {
   deleteServiceCard,
   fetchAdminContent,
   saveGalleryItem,
+  saveGalleryOrder,
   saveHomepage,
   saveProject,
   saveProjectSection,
@@ -27,7 +29,7 @@ type Notice = {
   text: string;
 };
 
-type AdminView = 'homepage' | 'projects';
+type AdminView = 'homepage' | 'projects' | 'about';
 
 function cls(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ');
@@ -60,7 +62,7 @@ export function AdminCMS() {
   const [gallery, setGallery] = useState<AdminGalleryItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [draggingGalleryItemId, setDraggingGalleryItemId] = useState<number | null>(null);
-  const [isGalleryCompact, setIsGalleryCompact] = useState(false);
+  const [expandedGalleryItemId, setExpandedGalleryItemId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -161,33 +163,47 @@ export function AdminCMS() {
     setGallery((items) => items.map((item) => (item.id === id ? ({ ...item, [field]: value } as AdminGalleryItem) : item)));
   }
 
-  function reorderGalleryItem(draggedId: number, targetId: number) {
-    if (draggedId === targetId) return;
+  async function saveGalleryPatch(
+    item: AdminGalleryItem,
+    patch: Partial<Pick<AdminGalleryItem, 'type' | 'layout_span' | 'url' | 'alt_text'>>,
+    successText = 'Gallery item saved.',
+  ) {
+    const nextItem = { ...item, ...patch };
 
-    setGallery((items) => {
-      const projectItems = items
-        .filter((item) => item.project_id === selectedProjectId)
-        .sort((a, b) => a.order_index - b.order_index);
-      const currentIndex = projectItems.findIndex((item) => item.id === draggedId);
-      const targetIndex = projectItems.findIndex((item) => item.id === targetId);
+    setGallery((items) => items.map((entry) => (entry.id === item.id ? nextItem : entry)));
 
-      if (currentIndex === -1 || targetIndex === -1) {
-        return items;
-      }
-
-      const reorderedProjectItems = [...projectItems];
-      const [movedItem] = reorderedProjectItems.splice(currentIndex, 1);
-      reorderedProjectItems.splice(targetIndex, 0, movedItem);
-
-      const updatedOrderById = new Map(
-        reorderedProjectItems.map((item, index) => [item.id, index + 1]),
-      );
-
-      return items.map((item) => {
-        const nextOrder = updatedOrderById.get(item.id);
-        return nextOrder ? { ...item, order_index: nextOrder } : item;
-      });
+    await runAction(`save-gallery-${item.id}`, async () => {
+      const saved = await saveGalleryItem(nextItem);
+      setGallery((items) => items.map((entry) => (entry.id === saved.id ? saved : entry)));
+      showSuccess(successText);
     });
+  }
+
+  function getReorderedGalleryState(draggedId: number, targetId: number) {
+    if (!selectedProjectId || draggedId === targetId) return null;
+
+    const projectItems = gallery
+      .filter((item) => item.project_id === selectedProjectId)
+      .sort((a, b) => a.order_index - b.order_index);
+    const currentIndex = projectItems.findIndex((item) => item.id === draggedId);
+    const targetIndex = projectItems.findIndex((item) => item.id === targetId);
+
+    if (currentIndex === -1 || targetIndex === -1) {
+      return null;
+    }
+
+    const reorderedProjectItems = [...projectItems];
+    const [movedItem] = reorderedProjectItems.splice(currentIndex, 1);
+    reorderedProjectItems.splice(targetIndex, 0, movedItem);
+
+    const updatedProjectItems = reorderedProjectItems.map((item, index) => ({
+      ...item,
+      order_index: index + 1,
+    }));
+    const updatedById = new Map(updatedProjectItems.map((item) => [item.id, item]));
+    const nextGallery = gallery.map((item) => updatedById.get(item.id) || item);
+
+    return { nextGallery, updatedProjectItems };
   }
 
   function handleGalleryDragStart(event: DragEvent<HTMLButtonElement>, id: number) {
@@ -196,12 +212,21 @@ export function AdminCMS() {
     event.dataTransfer.setData('text/plain', String(id));
   }
 
-  function handleGalleryDrop(event: DragEvent<HTMLDivElement>, targetId: number) {
+  async function handleGalleryDrop(event: DragEvent<HTMLDivElement>, targetId: number) {
     event.preventDefault();
     const draggedId = Number(event.dataTransfer.getData('text/plain') || draggingGalleryItemId);
 
     if (Number.isFinite(draggedId)) {
-      reorderGalleryItem(draggedId, targetId);
+      const reordered = getReorderedGalleryState(draggedId, targetId);
+
+      if (reordered) {
+        setGallery(reordered.nextGallery);
+
+        await runAction(`save-gallery-order-${selectedProjectId}`, async () => {
+          await saveGalleryOrder(reordered.updatedProjectItems[0].project_id, reordered.updatedProjectItems.map(item => item.id));
+          showSuccess('Gallery order saved.');
+        });
+      }
     }
 
     setDraggingGalleryItemId(null);
@@ -213,7 +238,7 @@ export function AdminCMS() {
     await runAction(`upload-${folder}-${file.name}`, async () => {
       const url = await uploadAsset(file, folder);
       onUploaded(url);
-      showSuccess('Asset uploaded to Supabase Storage.');
+      showSuccess('Asset uploaded to Cloudflare R2.');
     });
   }
 
@@ -222,7 +247,7 @@ export function AdminCMS() {
       <div className="min-h-screen bg-[#0f0f0f] text-[#eeeeee] flex items-center justify-center">
         <div className="text-center">
           <p className="text-lg">Loading admin panel...</p>
-          <p className="text-sm text-[#9e9e9e] mt-2">Fetching content from Supabase</p>
+          <p className="text-sm text-[#9e9e9e] mt-2">Fetching website content</p>
         </div>
       </div>
     );
@@ -236,7 +261,7 @@ export function AdminCMS() {
             <p className="text-sm uppercase tracking-[0.24em] text-[#9e9e9e]">Admin CMS</p>
             <h1 className="text-3xl md:text-5xl font-['Red_Hat_Display'] font-bold leading-none mt-2">Website Content Manager</h1>
             <p className="text-[#9e9e9e] mt-3 max-w-2xl">
-              Homepage and project settings are now separated. Media uploads go directly to your Supabase Storage bucket.
+              Homepage and project settings are now separated. Content is stored in Cloudflare D1 and media uploads go to Cloudflare R2.
             </p>
           </div>
           <div className="flex gap-3">
@@ -260,6 +285,9 @@ export function AdminCMS() {
           <TabButton active={activeView === 'projects'} onClick={() => setActiveView('projects')}>
             Projects
           </TabButton>
+          <TabButton active={activeView === 'about'} onClick={() => setActiveView('about')}>
+            About me
+          </TabButton>
         </div>
 
         {notice && (
@@ -275,7 +303,7 @@ export function AdminCMS() {
           </div>
         )}
 
-        {activeView === 'homepage' ? (
+        {activeView === 'about' ? <AdminAboutEditor /> : activeView === 'homepage' ? (
           <section className="rounded-3xl bg-[#171717] border border-[#2a2a2a] p-5 md:p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -634,32 +662,14 @@ export function AdminCMS() {
                     </div>
 
                     <div className="rounded-2xl border border-[#2a2a2a] bg-[#111111] p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium">Project gallery</h3>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setIsGalleryCompact((value) => !value)}
-                            className={secondaryButtonClass}
-                          >
-                            {isGalleryCompact ? 'Edit view' : 'Compact view'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              runAction(`save-gallery-order-${selectedProject.id}`, async () => {
-                                const savedItems = await Promise.all(
-                                  selectedProjectGallery.map((item) => saveGalleryItem(item)),
-                                );
-                                const savedById = new Map(savedItems.map((item) => [item.id, item]));
-                                setGallery((items) => items.map((item) => savedById.get(item.id) || item));
-                                showSuccess('Gallery order saved.');
-                              })
-                            }
-                            className={secondaryButtonClass}
-                          >
-                            Save order
-                          </button>
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium">Project gallery</h3>
+                          <p className="mt-1 text-sm text-[#9e9e9e]">
+                            Drag cards to reorder. Use Full for hero moments and Half for paired cards. Edit opens detailed fields only when needed.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
                             onClick={() =>
@@ -689,128 +699,149 @@ export function AdminCMS() {
                         </div>
                       </div>
 
-                      <div
-                        className={cls(
-                          isGalleryCompact
-                            ? 'columns-1 md:columns-2 gap-2 space-y-2'
-                            : 'grid gap-4 lg:grid-cols-2',
-                        )}
-                      >
-                        {selectedProjectGallery.map((item, index) => (
-                          <div
-                            key={item.id}
-                            onDragOver={(event) => {
-                              event.preventDefault();
-                              event.dataTransfer.dropEffect = 'move';
-                            }}
-                            onDrop={(event) => handleGalleryDrop(event, item.id)}
-                            className={cls(
-                              isGalleryCompact
-                                ? 'break-inside-avoid inline-block w-full mb-2 relative overflow-hidden rounded-lg border border-[#2a2a2a] bg-black transition-colors'
-                                : 'rounded-2xl border border-[#2a2a2a] bg-[#171717] p-4 space-y-4 transition-colors',
-                              draggingGalleryItemId === item.id && 'border-[#eeeeee] bg-[#202020] opacity-70',
-                              draggingGalleryItemId !== null && draggingGalleryItemId !== item.id && 'hover:border-[#616161]',
-                            )}
-                          >
-                            {isGalleryCompact ? (
-                              <div className="absolute left-2 top-2 z-10 flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  draggable
-                                  onDragStart={(event) => handleGalleryDragStart(event, item.id)}
-                                  onDragEnd={() => setDraggingGalleryItemId(null)}
-                                  className="cursor-grab rounded-full bg-black/70 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm active:cursor-grabbing"
-                                  title="Drag to reorder"
-                                >
-                                  Drag
-                                </button>
-                                <span className="rounded-full bg-black/70 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm">
-                                  {index + 1}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                <div className="flex items-center gap-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {selectedProjectGallery.map((item) => {
+                          const fileName = getFileName(item.url) || `${item.type === 'video' ? 'Video' : 'Image'} item`;
+                          const isExpanded = expandedGalleryItemId === item.id;
+                          const layoutSpan = item.layout_span || 'half';
+
+                          return (
+                            <div
+                              key={item.id}
+                              onDragOver={(event) => {
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = 'move';
+                              }}
+                              onDrop={(event) => handleGalleryDrop(event, item.id)}
+                              className={cls(
+                                'group overflow-hidden rounded-2xl border border-[#2a2a2a] bg-[#151515] transition-colors',
+                                layoutSpan === 'full' && 'md:col-span-2',
+                                draggingGalleryItemId === item.id && 'border-[#eeeeee] bg-[#202020] opacity-70',
+                                draggingGalleryItemId !== null && draggingGalleryItemId !== item.id && 'hover:border-[#616161]',
+                              )}
+                            >
+                              <div className="relative bg-black">
+                                <GalleryMediaPreview item={item} compact />
+
+                                <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
                                   <button
                                     type="button"
                                     draggable
                                     onDragStart={(event) => handleGalleryDragStart(event, item.id)}
                                     onDragEnd={() => setDraggingGalleryItemId(null)}
-                                    className="cursor-grab rounded-xl border border-[#2a2a2a] bg-[#101010] px-3 py-2 text-xs text-[#9e9e9e] active:cursor-grabbing"
+                                    className="cursor-grab rounded-full bg-black/75 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm active:cursor-grabbing"
                                     title="Drag to reorder"
                                   >
                                     Drag
                                   </button>
-                                  <div>
-                                    <h4 className="font-medium">{item.type === 'video' ? 'Video item' : 'Image item'}</h4>
-                                    <p className="text-xs text-[#9e9e9e] mt-1">Position {index + 1} · ID {item.id}</p>
+                                  <span className="rounded-full bg-black/75 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm">
+                                    {item.type === 'video' ? 'Video' : 'Image'}
+                                  </span>
+                                  <span className="rounded-full bg-black/75 px-3 py-1.5 text-xs text-[#eeeeee] backdrop-blur-sm">
+                                    {layoutSpan === 'full' ? 'Full' : 'Half'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-3 p-3">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="min-w-0">
+                                    <h4 className="truncate font-medium text-[#eeeeee]" title={fileName}>
+                                      {fileName}
+                                    </h4>
+                                    <p className="mt-1 text-xs text-[#9e9e9e]">
+                                      Drag to reorder. Layout maps directly to the live site.
+                                    </p>
+                                  </div>
+
+                                  <div className="flex shrink-0 flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        saveGalleryPatch(
+                                          item,
+                                          { layout_span: layoutSpan === 'full' ? 'half' : 'full' },
+                                          'Gallery layout saved.',
+                                        )
+                                      }
+                                      className={secondaryButtonClass}
+                                    >
+                                      {layoutSpan === 'full' ? 'Make Half' : 'Make Full'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedGalleryItemId((current) => (current === item.id ? null : item.id))}
+                                      className={secondaryButtonClass}
+                                    >
+                                      {isExpanded ? 'Close' : 'Edit'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        runAction(`delete-gallery-${item.id}`, async () => {
+                                          await deleteGalleryItem(item.id);
+                                          setGallery((items) => items.filter((entry) => entry.id !== item.id));
+                                          showSuccess('Gallery item deleted.');
+                                        })
+                                      }
+                                      className={dangerButtonClass}
+                                    >
+                                      Delete
+                                    </button>
                                   </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      runAction(`save-gallery-${item.id}`, async () => {
-                                        const saved = await saveGalleryItem(item);
-                                        setGallery((items) => items.map((entry) => (entry.id === saved.id ? saved : entry)));
-                                        showSuccess('Gallery item saved.');
-                                      })
-                                    }
-                                    className={secondaryButtonClass}
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      runAction(`delete-gallery-${item.id}`, async () => {
-                                        await deleteGalleryItem(item.id);
-                                        setGallery((items) => items.filter((entry) => entry.id !== item.id));
-                                        showSuccess('Gallery item deleted.');
-                                      })
-                                    }
-                                    className={dangerButtonClass}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
+
+                                {isExpanded && (
+                                  <div className="space-y-4 rounded-2xl border border-[#2a2a2a] bg-[#101010] p-4">
+                                    <div className="grid gap-4 md:grid-cols-3">
+                                      <Field label="Type">
+                                        <select value={item.type} onChange={(event) => updateGalleryState(item.id, 'type', event.target.value)} className={inputClass}>
+                                          <option value="image">Image</option>
+                                          <option value="video">Video</option>
+                                        </select>
+                                      </Field>
+                                      <Field label="Layout">
+                                        <select value={layoutSpan} onChange={(event) => updateGalleryState(item.id, 'layout_span', event.target.value)} className={inputClass}>
+                                          <option value="full">Full width</option>
+                                          <option value="half">Half width</option>
+                                        </select>
+                                      </Field>
+                                      <Field label="Alt text">
+                                        <input value={item.alt_text || ''} onChange={(event) => updateGalleryState(item.id, 'alt_text', event.target.value)} className={inputClass} />
+                                      </Field>
+                                    </div>
+
+                                    <UploadField
+                                      label="Media URL"
+                                      value={item.url}
+                                      onChange={(value) => updateGalleryState(item.id, 'url', value)}
+                                      accept={item.type === 'video' ? 'video/*' : 'image/*'}
+                                      onUpload={(file) =>
+                                        handleUpload(file, `${getProjectStorageBase(selectedProject)}/gallery/${item.type}s`, (url) =>
+                                          updateGalleryState(item.id, 'url', url),
+                                        )
+                                      }
+                                    />
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        runAction(`save-gallery-${item.id}`, async () => {
+                                          const saved = await saveGalleryItem(item);
+                                          setGallery((items) => items.map((entry) => (entry.id === saved.id ? saved : entry)));
+                                          showSuccess('Gallery item saved.');
+                                        })
+                                      }
+                                      className={secondaryButtonClass}
+                                    >
+                                      Save changes
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-
-                            {!isGalleryCompact && (
-                              <div className="grid gap-4 md:grid-cols-3">
-                                <Field label="Type">
-                                  <select value={item.type} onChange={(event) => updateGalleryState(item.id, 'type', event.target.value)} className={inputClass}>
-                                    <option value="image">Image</option>
-                                    <option value="video">Video</option>
-                                  </select>
-                                </Field>
-                                <Field label="Alt text">
-                                  <input value={item.alt_text || ''} onChange={(event) => updateGalleryState(item.id, 'alt_text', event.target.value)} className={inputClass} />
-                                </Field>
-                                <Field label="Order">
-                                  <input type="number" value={item.order_index} onChange={(event) => updateGalleryState(item.id, 'order_index', Number(event.target.value))} className={inputClass} />
-                                </Field>
-                              </div>
-                            )}
-
-                            <GalleryMediaPreview item={item} compact={isGalleryCompact} />
-
-                            {!isGalleryCompact && (
-                              <UploadField
-                                label="Media URL"
-                                value={item.url}
-                                onChange={(value) => updateGalleryState(item.id, 'url', value)}
-                                accept={item.type === 'video' ? 'video/*' : 'image/*'}
-                                onUpload={(file) =>
-                                  handleUpload(file, `${getProjectStorageBase(selectedProject)}/gallery/${item.type}s`, (url) =>
-                                    updateGalleryState(item.id, 'url', url),
-                                  )
-                                }
-                              />
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </>
@@ -825,10 +856,9 @@ export function AdminCMS() {
         )}
 
         <section className="rounded-3xl bg-[#171717] border border-[#2a2a2a] p-5 md:p-6 space-y-3 text-sm text-[#9e9e9e]">
-          <h2 className="text-lg font-medium text-[#eeeeee]">Supabase setup notes</h2>
-          <p>The admin panel uploads files to the Supabase Storage bucket named <code>site-assets</code> by default.</p>
-          <p>You can override that bucket with <code>VITE_SUPABASE_STORAGE_BUCKET</code> in your local environment.</p>
-          <p>This admin now manages homepage and project content only. The old About page is no longer part of the CMS.</p>
+          <h2 className="text-lg font-medium text-[#eeeeee]">Content storage</h2>
+          <p>Project content is stored in Cloudflare D1. Images and videos are stored in Cloudflare R2.</p>
+          <p>Dragging saves the gallery order automatically. Media details are saved with Save changes.</p>
         </section>
       </div>
     </div>

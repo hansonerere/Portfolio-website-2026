@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useHomepage } from '../hooks/useSupabaseData';
+import { useHomepage } from '../hooks/useContentData';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 
 function StaggeredContent({ 
@@ -89,7 +89,7 @@ function ServiceCardSkeleton() {
   );
 }
 
-export function LandingPageWithSupabase() {
+export function HomeContent() {
   const { homepage, services, loading, error } = useHomepage();
 
   if (error) {

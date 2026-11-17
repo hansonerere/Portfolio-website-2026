@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SidebarWithSupabase } from './components/SidebarWithSupabase';
-import { ContentAreaWithSupabase } from './components/ContentAreaWithSupabase';
-import { LandingPageWithSupabase } from './components/LandingPageWithSupabase';
-import { AboutContentAreaNotion } from './components/AboutContentAreaNotion';
+import { SidebarWithContent } from './components/SidebarWithContent';
+import { ProjectContent } from './components/ProjectContent';
+import { HomeContent } from './components/HomeContent';
+import { AboutContent } from './components/AboutContent';
 import { AdminAuthGate } from './components/AdminAuthGate';
-import { prefetchProjectDetails, useProjects } from './hooks/useSupabaseData';
-import { preloadNotionAbout } from './lib/notionWarmup';
+import { prefetchProjectDetails, useProjects } from './hooks/useContentData';
+import { loadContent } from './hooks/useContentData';
 
 export default function App() {
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
@@ -30,14 +30,14 @@ function PublicSiteApp() {
   const [showMobileContent, setShowMobileContent] = useState(false);
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [shouldWarmNotion, setShouldWarmNotion] = useState(false);
+  const [shouldWarmAbout, setShouldWarmAbout] = useState(false);
   const [aboutOpenVersion, setAboutOpenVersion] = useState(0);
-  // 生产模式：始终使用Supabase数据
+  // Content is served by Cloudflare.
   const contentRef = useRef<HTMLDivElement>(null);
   const wasAboutVisibleRef = useRef(false);
 
-  // Get Supabase projects data
-  const { projects: supabaseProjects, loading: projectsLoading } = useProjects();
+  // Get published projects.
+  const { projects: contentProjects, loading: projectsLoading } = useProjects();
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -70,10 +70,6 @@ function PublicSiteApp() {
     };
   }, []);
 
-  // 生产模式：始终使用Supabase数据
-  useEffect(() => {
-    console.log('Production Mode: Using Supabase data');
-  }, []);
 
   // Page loading animation
   useEffect(() => {
@@ -91,22 +87,22 @@ function PublicSiteApp() {
 
   useEffect(() => {
     const warmupTimer = window.setTimeout(() => {
-      setShouldWarmNotion(true);
-      preloadNotionAbout();
+      setShouldWarmAbout(true);
+      void loadContent().catch(() => undefined);
     }, 1200);
 
     return () => window.clearTimeout(warmupTimer);
   }, []);
 
   useEffect(() => {
-    if (!supabaseProjects.length) return;
+    if (!contentProjects.length) return;
 
     // Warm the first two non-about projects to reduce first-open latency.
-    supabaseProjects
+    contentProjects
       .filter((project) => project.category !== 'Info' && project.title !== 'About me')
       .slice(0, 2)
       .forEach((project) => prefetchProjectDetails(project.id));
-  }, [supabaseProjects]);
+  }, [contentProjects]);
 
   const scrollToTop = () => {
     if (contentRef.current) {
@@ -123,7 +119,7 @@ function PublicSiteApp() {
     if (isMobile) {
       setShowMobileContent(true);
     }
-    
+
     // Instant scroll to top after state change
     setTimeout(() => {
       scrollToTop();
@@ -137,7 +133,7 @@ function PublicSiteApp() {
     if (isMobile) {
       setShowMobileContent(true);
     }
-    
+
     // Instant scroll to top after state change
     setTimeout(() => {
       scrollToTop();
@@ -149,16 +145,16 @@ function PublicSiteApp() {
   };
 
   const handleAboutHover = () => {
-    setShouldWarmNotion(true);
-    preloadNotionAbout();
+    setShouldWarmAbout(true);
+    void loadContent().catch(() => undefined);
   };
 
   const handleProjectHover = (projectId: string) => {
     prefetchProjectDetails(projectId);
   };
 
-  // Get current project from Supabase data
-  const currentProject = activeProject ? supabaseProjects.find(p => p.id === activeProject) : null;
+  // Get the selected project.
+  const currentProject = activeProject ? contentProjects.find(p => p.id === activeProject) : null;
   const isAboutProject = Boolean(currentProject && (currentProject.title === 'About me' || currentProject.category === 'Info'));
 
   useEffect(() => {
@@ -197,7 +193,7 @@ function PublicSiteApp() {
           isInitialLoad && isPageLoaded ? 'page-load-animate' : ''
         }`}>
                   <div className="h-full overflow-y-auto">
-          <SidebarWithSupabase 
+          <SidebarWithContent
             activeProject={activeProject}
             onProjectSelect={handleProjectSelect}
             onHomeSelect={handleHomeSelect}
@@ -207,7 +203,7 @@ function PublicSiteApp() {
           />
         </div>
         </div>
-        
+
         {/* Mobile Content - Full Screen */}
         <div className={`absolute inset-0 transition-transform duration-300 ease-in-out ${
           showMobileContent ? 'translate-x-0' : 'translate-x-full'
@@ -225,9 +221,9 @@ function PublicSiteApp() {
               </svg>
             </button>
           </div>
-          
+
           {/* Content with Framer Motion animation */}
-          <div 
+          <div
             ref={contentRef}
             className="relative h-full overflow-y-auto"
           >
@@ -242,20 +238,20 @@ function PublicSiteApp() {
                   transition={transition}
                 >
                   {activeProject === null ? (
-                    <LandingPageWithSupabase />
+                    <HomeContent />
                   ) : currentProject ? (
-                    <ContentAreaWithSupabase projectId={activeProject} />
+                    <ProjectContent projectId={activeProject} />
                   ) : (
-                    <LandingPageWithSupabase />
+                    <HomeContent />
                   )}
                 </motion.div>
               </AnimatePresence>
             )}
 
-            <AboutContentAreaNotion
+            <AboutContent
               projectId={activeProject || 'about'}
               isVisible={isAboutProject}
-              shouldLoad={shouldWarmNotion}
+              shouldLoad={shouldWarmAbout}
               resetToken={aboutOpenVersion}
               preloadEmbed={false}
             />
@@ -273,7 +269,7 @@ function PublicSiteApp() {
         <div className={`w-4/11 max-w-[480px] flex-shrink-0 h-full overflow-y-auto ${
           isInitialLoad && !isPageLoaded ? 'page-load-hidden' : ''
         } ${isInitialLoad && isPageLoaded ? 'page-load-animate' : ''}`}>
-          <SidebarWithSupabase 
+          <SidebarWithContent
             activeProject={activeProject}
             onProjectSelect={handleProjectSelect}
             onHomeSelect={handleHomeSelect}
@@ -281,9 +277,9 @@ function PublicSiteApp() {
             onProjectHover={handleProjectHover}
           />
         </div>
-        
+
         {/* Right Content - flex-1 to take remaining space with Framer Motion animation */}
-        <div 
+        <div
           ref={contentRef}
           className={`relative flex-1 h-full overflow-y-auto mr-2 ${
             isInitialLoad && !isPageLoaded ? 'page-load-hidden' : ''
@@ -300,20 +296,20 @@ function PublicSiteApp() {
                 transition={transition}
               >
                 {activeProject === null ? (
-                  <LandingPageWithSupabase />
+                  <HomeContent />
                 ) : currentProject ? (
-                  <ContentAreaWithSupabase projectId={activeProject} />
+                  <ProjectContent projectId={activeProject} />
                 ) : (
-                  <LandingPageWithSupabase />
+                  <HomeContent />
                 )}
               </motion.div>
             </AnimatePresence>
           )}
 
-          <AboutContentAreaNotion
+          <AboutContent
             projectId={activeProject || 'about'}
             isVisible={isAboutProject}
-            shouldLoad={shouldWarmNotion}
+            shouldLoad={shouldWarmAbout}
             resetToken={aboutOpenVersion}
             preloadEmbed={false}
           />
@@ -329,7 +325,7 @@ function PublicSiteApp() {
       <div className={`w-1/3 max-w-[480px] flex-shrink-0 h-full overflow-y-auto ${
         isInitialLoad && !isPageLoaded ? 'page-load-hidden' : ''
       } ${isInitialLoad && isPageLoaded ? 'page-load-animate' : ''}`}>
-        <SidebarWithSupabase 
+        <SidebarWithContent
           activeProject={activeProject}
           onProjectSelect={handleProjectSelect}
           onHomeSelect={handleHomeSelect}
@@ -337,9 +333,9 @@ function PublicSiteApp() {
           onProjectHover={handleProjectHover}
         />
       </div>
-      
+
       {/* Right Content - flex-1 to take remaining space with Framer Motion animation */}
-      <div 
+      <div
         ref={contentRef}
         className={`relative flex-1 h-full overflow-y-auto mr-2 ${
           isInitialLoad && !isPageLoaded ? 'page-load-hidden' : ''
@@ -356,20 +352,20 @@ function PublicSiteApp() {
               transition={transition}
             >
                 {activeProject === null ? (
-                  <LandingPageWithSupabase />
+                  <HomeContent />
                 ) : currentProject ? (
-                  <ContentAreaWithSupabase projectId={activeProject} />
+                  <ProjectContent projectId={activeProject} />
                 ) : (
-                <LandingPageWithSupabase />
+                <HomeContent />
               )}
             </motion.div>
           </AnimatePresence>
         )}
 
-        <AboutContentAreaNotion
+        <AboutContent
           projectId={activeProject || 'about'}
           isVisible={isAboutProject}
-          shouldLoad={shouldWarmNotion}
+          shouldLoad={shouldWarmAbout}
           resetToken={aboutOpenVersion}
           preloadEmbed
         />

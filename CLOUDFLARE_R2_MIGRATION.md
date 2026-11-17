@@ -1,5 +1,9 @@
 # Cloudflare R2 Media Migration
 
+> Historical guide, not current setup instructions. Content and authentication
+> have also moved off Supabase. Follow [README](README.md) and the
+> [current handoff](HANDOFF_CLOUDFLARE_MIGRATION_2026-11-17.md) instead.
+
 This project can migrate existing Supabase Storage media URLs to Cloudflare R2 and use R2 for future admin uploads.
 
 ## Cloudflare Pages Settings

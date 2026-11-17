@@ -33,3 +33,7 @@ dist-ssr
 # Vercel
 .vercel
 .local-node
+.migration-private/
+.dev.vars
+.dev.vars.*
+.wrangler/

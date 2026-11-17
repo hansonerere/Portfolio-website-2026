@@ -1,4 +1,4 @@
-import { useProjects } from '../hooks/useSupabaseData';
+import { useProjects } from '../hooks/useContentData';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import Vector from '../imports/Vector';
 
@@ -37,7 +37,7 @@ function ProjectCardSkeleton({ isMobile }: { isMobile: boolean }) {
   );
 }
 
-export function SidebarWithSupabase({
+export function SidebarWithContent({
   activeProject,
   onProjectSelect,
   onHomeSelect,
