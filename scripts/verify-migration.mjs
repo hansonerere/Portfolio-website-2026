@@ -9,6 +9,12 @@ const password = credentials.match(/^Password: (.+)$/m)?.[1];
 const expected = JSON.parse(fs.readFileSync('.migration-private/website-content.json', 'utf8'));
 const checks = [];
 let cookie = '';
+for (const path of ['/admin', '/admin/login']) {
+  const response = await fetch(base + path, { redirect: 'manual' });
+  assert.equal(response.status, 200, `${path} must preserve the client-side route without redirecting`);
+  assert.match(await response.text(), /id="root"/);
+}
+checks.push('Admin and login deep links serve the app directly without redirecting to the homepage.');
 async function call(path, method = 'GET', body, session = cookie, origin = base) {
   return fetch(`${base}${path}`, {
     method,

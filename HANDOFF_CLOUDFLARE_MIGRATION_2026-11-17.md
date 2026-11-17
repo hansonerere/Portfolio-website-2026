@@ -157,6 +157,12 @@ verification, same-origin enforcement, request-size limits, nested contact
 validation, and snapshot retry behavior. `public/_routes.json` restricts Pages
 Functions to `/api/*`, leaving static files outside the dynamic-request quota.
 
+Pages serves client-side routes with its built-in SPA fallback. There is no
+`public/_redirects` or root `404.html`. Do not rewrite `/admin` to `/index.html`:
+Pages canonicalizes the target to `/`, causing a 308 redirect and hiding the
+login screen. Migration verification checks that `/admin` and `/admin/login`
+both return the app with HTTP 200 and no redirect.
+
 ## Free-Tier Boundaries
 
 No paid Workers/D1/Images/Stream plan was enabled during migration. Current
